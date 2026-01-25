@@ -103,13 +103,19 @@ func (r *TransactionRepository) WithdrawWithLock(ctx context.Context, userID int
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // Rollback после Commit безопасен
 
-	// Получаем баланс с блокировкой строк
+	// Используем advisory lock для блокировки по user_id
+	// Это предотвращает race condition при параллельных списаниях
+	_, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, userID)
+	if err != nil {
+		return fmt.Errorf("repository: failed to acquire lock for user %d: %w", userID, err)
+	}
+
+	// Получаем баланс
 	var balance float64
 	err = tx.QueryRow(ctx, `
 		SELECT COALESCE(SUM(amount), 0) 
 		FROM transactions 
-		WHERE user_id = $1 
-		FOR UPDATE`, userID).Scan(&balance)
+		WHERE user_id = $1`, userID).Scan(&balance)
 
 	if err != nil {
 		return fmt.Errorf("repository: failed to get balance for user %d: %w", userID, err)

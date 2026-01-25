@@ -186,6 +186,10 @@ func TestTransactionRepository_WithdrawWithLock(t *testing.T) {
 
 		mock.ExpectBegin()
 
+		mock.ExpectExec(`SELECT pg_advisory_xact_lock`).
+			WithArgs(userID).
+			WillReturnResult(pgxmock.NewResult("SELECT", 1))
+
 		balanceRows := pgxmock.NewRows([]string{"balance"}).AddRow(currentBalance)
 		mock.ExpectQuery(`SELECT COALESCE\(SUM\(amount\), 0\) FROM transactions WHERE user_id`).
 			WithArgs(userID).
@@ -210,6 +214,10 @@ func TestTransactionRepository_WithdrawWithLock(t *testing.T) {
 		currentBalance := 100.0
 
 		mock.ExpectBegin()
+
+		mock.ExpectExec(`SELECT pg_advisory_xact_lock`).
+			WithArgs(userID).
+			WillReturnResult(pgxmock.NewResult("SELECT", 1))
 
 		balanceRows := pgxmock.NewRows([]string{"balance"}).AddRow(currentBalance)
 		mock.ExpectQuery(`SELECT COALESCE\(SUM\(amount\), 0\) FROM transactions WHERE user_id`).
@@ -244,6 +252,10 @@ func TestTransactionRepository_WithdrawWithLock(t *testing.T) {
 
 		mock.ExpectBegin()
 
+		mock.ExpectExec(`SELECT pg_advisory_xact_lock`).
+			WithArgs(userID).
+			WillReturnResult(pgxmock.NewResult("SELECT", 1))
+
 		mock.ExpectQuery(`SELECT COALESCE\(SUM\(amount\), 0\) FROM transactions WHERE user_id`).
 			WithArgs(userID).
 			WillReturnError(errors.New("query error"))
@@ -263,6 +275,10 @@ func TestTransactionRepository_WithdrawWithLock(t *testing.T) {
 		currentBalance := 500.0
 
 		mock.ExpectBegin()
+
+		mock.ExpectExec(`SELECT pg_advisory_xact_lock`).
+			WithArgs(userID).
+			WillReturnResult(pgxmock.NewResult("SELECT", 1))
 
 		balanceRows := pgxmock.NewRows([]string{"balance"}).AddRow(currentBalance)
 		mock.ExpectQuery(`SELECT COALESCE\(SUM\(amount\), 0\) FROM transactions WHERE user_id`).
