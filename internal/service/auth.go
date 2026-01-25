@@ -10,11 +10,24 @@ import (
 	"github.com/avc/loyalty-system-diploma/internal/utils/password"
 )
 
+// AuthServiceConfig содержит конфигурацию AuthService
+type AuthServiceConfig struct {
+	MinPasswordLength int
+}
+
+// DefaultAuthServiceConfig возвращает конфигурацию по умолчанию
+func DefaultAuthServiceConfig() AuthServiceConfig {
+	return AuthServiceConfig{
+		MinPasswordLength: 6,
+	}
+}
+
 // AuthService реализует domain.AuthService
 type AuthService struct {
-	userRepo       domain.UserRepository
-	passwordHasher password.Hasher
-	jwtManager     *jwt.Manager
+	userRepo          domain.UserRepository
+	passwordHasher    password.Hasher
+	jwtManager        *jwt.Manager
+	minPasswordLength int
 }
 
 // NewAuthService создает новый AuthService
@@ -22,11 +35,16 @@ func NewAuthService(
 	userRepo domain.UserRepository,
 	passwordHasher password.Hasher,
 	jwtManager *jwt.Manager,
+	config AuthServiceConfig,
 ) *AuthService {
+	if config.MinPasswordLength <= 0 {
+		config.MinPasswordLength = 6
+	}
 	return &AuthService{
-		userRepo:       userRepo,
-		passwordHasher: passwordHasher,
-		jwtManager:     jwtManager,
+		userRepo:          userRepo,
+		passwordHasher:    passwordHasher,
+		jwtManager:        jwtManager,
+		minPasswordLength: config.MinPasswordLength,
 	}
 }
 
@@ -34,7 +52,11 @@ func NewAuthService(
 func (s *AuthService) Register(ctx context.Context, login, userPassword string) (string, error) {
 	// Валидация входных данных
 	if login == "" || userPassword == "" {
-		return "", fmt.Errorf("auth service: empty login or password")
+		return "", fmt.Errorf("%w: empty login or password", domain.ErrInvalidInput)
+	}
+
+	if len(userPassword) < s.minPasswordLength {
+		return "", fmt.Errorf("%w: password must be at least %d characters", domain.ErrInvalidInput, s.minPasswordLength)
 	}
 
 	// Хеширование пароля
@@ -66,7 +88,7 @@ func (s *AuthService) Register(ctx context.Context, login, userPassword string) 
 func (s *AuthService) Login(ctx context.Context, login, userPassword string) (string, error) {
 	// Валидация входных данных
 	if login == "" || userPassword == "" {
-		return "", fmt.Errorf("auth service: empty login or password")
+		return "", fmt.Errorf("%w: empty login or password", domain.ErrInvalidInput)
 	}
 
 	// Получение пользователя по логину

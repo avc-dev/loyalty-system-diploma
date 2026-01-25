@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // TransactionRepository реализует domain.TransactionRepository
@@ -26,6 +28,11 @@ func (r *TransactionRepository) CreateTransaction(ctx context.Context, userID in
 	)
 
 	if err != nil {
+		// Проверяем на дублирование начисления (unique constraint violation)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && txType == domain.TransactionTypeAccrual {
+			return domain.ErrDuplicateAccrual
+		}
 		return fmt.Errorf("repository: failed to create transaction for user %d: %w", userID, err)
 	}
 

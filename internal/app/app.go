@@ -74,7 +74,10 @@ func NewApp() (*App, error) {
 	jwtManager := jwt.NewManager(cfg.JWTSecret, cfg.JWTTokenTTL)
 
 	// Создание сервисов
-	authService := service.NewAuthService(userRepo, passwordHasher, jwtManager)
+	authServiceConfig := service.AuthServiceConfig{
+		MinPasswordLength: cfg.MinPasswordLength,
+	}
+	authService := service.NewAuthService(userRepo, passwordHasher, jwtManager, authServiceConfig)
 	orderService := service.NewOrderService(orderRepo)
 	balanceService := service.NewBalanceService(transactionRepo)
 	accrualClient := service.NewAccrualClient(cfg.AccrualSystemAddress)
@@ -83,9 +86,15 @@ func NewApp() (*App, error) {
 	authHandler := handlers.NewAuthHandler(authService, logger)
 	ordersHandler := handlers.NewOrdersHandler(orderService, logger)
 	balanceHandler := handlers.NewBalanceHandler(balanceService, logger)
+	healthHandler := handlers.NewHealthHandler(dbPool, logger)
 
 	// Создание worker pool
-	workerPool := worker.NewPool(3, 100, orderRepo, transactionRepo, accrualClient, logger)
+	workerPoolConfig := worker.PoolConfig{
+		Workers:      cfg.WorkerPoolSize,
+		QueueSize:    cfg.WorkerQueueSize,
+		ScanInterval: cfg.WorkerScanInterval,
+	}
+	workerPool := worker.NewPool(workerPoolConfig, orderRepo, transactionRepo, accrualClient, logger)
 
 	// Настройка роутера
 	r := chi.NewRouter()
@@ -95,6 +104,10 @@ func NewApp() (*App, error) {
 	r.Use(handlers.LoggingMiddleware(logger))
 	r.Use(handlers.RecoveryMiddleware(logger))
 	r.Use(middleware.Compress(5))
+
+	// Health check эндпоинты (без middleware для быстрого ответа)
+	r.Get("/health", healthHandler.Health)
+	r.Get("/ready", healthHandler.Ready)
 
 	// Публичные эндпоинты
 	r.Post("/api/user/register", authHandler.Register)

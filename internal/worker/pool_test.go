@@ -7,94 +7,125 @@ import (
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
 	domainmocks "github.com/avc/loyalty-system-diploma/internal/domain/mocks"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 )
 
+func newTestPool(t *testing.T) (*Pool, *domainmocks.OrderRepositoryMock, *domainmocks.TransactionRepositoryMock, *domainmocks.AccrualClientMock) {
+	mockOrderRepo := domainmocks.NewOrderRepositoryMock(t)
+	mockTxRepo := domainmocks.NewTransactionRepositoryMock(t)
+	mockAccrualClient := domainmocks.NewAccrualClientMock(t)
+	logger, _ := zap.NewDevelopment()
+
+	config := PoolConfig{
+		Workers:      1,
+		QueueSize:    10,
+		ScanInterval: time.Second,
+	}
+	pool := NewPool(config, mockOrderRepo, mockTxRepo, mockAccrualClient, logger)
+
+	return pool, mockOrderRepo, mockTxRepo, mockAccrualClient
+}
+
 func TestPool_ProcessOrder(t *testing.T) {
-	mockOrderRepo := domainmocks.NewOrderRepositoryMock(t)
-	mockTxRepo := domainmocks.NewTransactionRepositoryMock(t)
-	mockAccrualClient := domainmocks.NewAccrualClientMock(t)
-	logger, _ := zap.NewDevelopment()
+	tests := []struct {
+		name        string
+		orderNumber string
+		setupMocks  func(*domainmocks.OrderRepositoryMock, *domainmocks.TransactionRepositoryMock, *domainmocks.AccrualClientMock)
+	}{
+		{
+			name:        "Success with accrual",
+			orderNumber: "12345678903",
+			setupMocks: func(orderRepo *domainmocks.OrderRepositoryMock, txRepo *domainmocks.TransactionRepositoryMock, accrualClient *domainmocks.AccrualClientMock) {
+				accrual := 100.0
+				accrualResp := &domain.AccrualResponse{
+					Order:   "12345678903",
+					Status:  domain.OrderStatusProcessed,
+					Accrual: &accrual,
+				}
+				order := &domain.Order{ID: 1, UserID: 1, Number: "12345678903", Status: domain.OrderStatusNew}
 
-	pool := NewPool(1, 10, mockOrderRepo, mockTxRepo, mockAccrualClient, logger)
+				accrualClient.EXPECT().GetOrderAccrual(mock.Anything, "12345678903").Return(accrualResp, nil).Once()
+				orderRepo.EXPECT().UpdateOrderStatus(mock.Anything, "12345678903", domain.OrderStatusProcessed, &accrual).Return(nil).Once()
+				orderRepo.EXPECT().GetOrderByNumber(mock.Anything, "12345678903").Return(order, nil).Once()
+				txRepo.EXPECT().CreateTransaction(mock.Anything, int64(1), "12345678903", accrual, domain.TransactionTypeAccrual).Return(nil).Once()
+			},
+		},
+		{
+			name:        "Order not registered in accrual system",
+			orderNumber: "12345678903",
+			setupMocks: func(orderRepo *domainmocks.OrderRepositoryMock, txRepo *domainmocks.TransactionRepositoryMock, accrualClient *domainmocks.AccrualClientMock) {
+				accrualClient.EXPECT().GetOrderAccrual(mock.Anything, "12345678903").Return(nil, nil).Once()
+				orderRepo.EXPECT().UpdateOrderStatus(mock.Anything, "12345678903", domain.OrderStatusProcessing, (*float64)(nil)).Return(nil).Once()
+			},
+		},
+		{
+			name:        "Order rejected by accrual system",
+			orderNumber: "12345678903",
+			setupMocks: func(orderRepo *domainmocks.OrderRepositoryMock, txRepo *domainmocks.TransactionRepositoryMock, accrualClient *domainmocks.AccrualClientMock) {
+				accrualResp := &domain.AccrualResponse{
+					Order:  "12345678903",
+					Status: domain.OrderStatusInvalid,
+				}
+				accrualClient.EXPECT().GetOrderAccrual(mock.Anything, "12345678903").Return(accrualResp, nil).Once()
+				orderRepo.EXPECT().UpdateOrderStatus(mock.Anything, "12345678903", domain.OrderStatusInvalid, (*float64)(nil)).Return(nil).Once()
+			},
+		},
+		{
+			name:        "Duplicate accrual - already processed",
+			orderNumber: "12345678903",
+			setupMocks: func(orderRepo *domainmocks.OrderRepositoryMock, txRepo *domainmocks.TransactionRepositoryMock, accrualClient *domainmocks.AccrualClientMock) {
+				accrual := 100.0
+				accrualResp := &domain.AccrualResponse{
+					Order:   "12345678903",
+					Status:  domain.OrderStatusProcessed,
+					Accrual: &accrual,
+				}
+				order := &domain.Order{ID: 1, UserID: 1, Number: "12345678903", Status: domain.OrderStatusNew}
 
-	ctx := context.Background()
-	orderNumber := "12345678903"
-	accrual := 100.0
-
-	// Mock responses
-	accrualResp := &domain.AccrualResponse{
-		Order:   orderNumber,
-		Status:  domain.OrderStatusProcessed,
-		Accrual: &accrual,
-	}
-	order := &domain.Order{ID: 1, UserID: 1, Number: orderNumber, Status: domain.OrderStatusNew}
-
-	mockAccrualClient.EXPECT().GetOrderAccrual(mock.Anything, orderNumber).Return(accrualResp, nil).Once()
-	mockOrderRepo.EXPECT().UpdateOrderStatus(mock.Anything, orderNumber, domain.OrderStatusProcessed, &accrual).Return(nil).Once()
-	mockOrderRepo.EXPECT().GetOrderByNumber(mock.Anything, orderNumber).Return(order, nil).Once()
-	mockTxRepo.EXPECT().CreateTransaction(mock.Anything, int64(1), orderNumber, accrual, domain.TransactionTypeAccrual).Return(nil).Once()
-
-	pool.processOrder(ctx, orderNumber)
-
-	// Give some time for async operations
-	time.Sleep(100 * time.Millisecond)
-}
-
-func TestPool_ProcessOrder_NoAccrual(t *testing.T) {
-	mockOrderRepo := domainmocks.NewOrderRepositoryMock(t)
-	mockTxRepo := domainmocks.NewTransactionRepositoryMock(t)
-	mockAccrualClient := domainmocks.NewAccrualClientMock(t)
-	logger, _ := zap.NewDevelopment()
-
-	pool := NewPool(1, 10, mockOrderRepo, mockTxRepo, mockAccrualClient, logger)
-
-	ctx := context.Background()
-	orderNumber := "12345678903"
-
-	// Заказ не зарегистрирован в системе начислений
-	mockAccrualClient.EXPECT().GetOrderAccrual(mock.Anything, orderNumber).Return(nil, nil).Once()
-	mockOrderRepo.EXPECT().UpdateOrderStatus(mock.Anything, orderNumber, domain.OrderStatusProcessing, (*float64)(nil)).Return(nil).Once()
-
-	pool.processOrder(ctx, orderNumber)
-
-	time.Sleep(100 * time.Millisecond)
-}
-
-func TestPool_ProcessOrder_InvalidStatus(t *testing.T) {
-	mockOrderRepo := domainmocks.NewOrderRepositoryMock(t)
-	mockTxRepo := domainmocks.NewTransactionRepositoryMock(t)
-	mockAccrualClient := domainmocks.NewAccrualClientMock(t)
-	logger, _ := zap.NewDevelopment()
-
-	pool := NewPool(1, 10, mockOrderRepo, mockTxRepo, mockAccrualClient, logger)
-
-	ctx := context.Background()
-	orderNumber := "12345678903"
-
-	// Заказ отклонен системой начислений
-	accrualResp := &domain.AccrualResponse{
-		Order:  orderNumber,
-		Status: domain.OrderStatusInvalid,
+				accrualClient.EXPECT().GetOrderAccrual(mock.Anything, "12345678903").Return(accrualResp, nil).Once()
+				orderRepo.EXPECT().UpdateOrderStatus(mock.Anything, "12345678903", domain.OrderStatusProcessed, &accrual).Return(nil).Once()
+				orderRepo.EXPECT().GetOrderByNumber(mock.Anything, "12345678903").Return(order, nil).Once()
+				txRepo.EXPECT().CreateTransaction(mock.Anything, int64(1), "12345678903", accrual, domain.TransactionTypeAccrual).Return(domain.ErrDuplicateAccrual).Once()
+			},
+		},
 	}
 
-	mockAccrualClient.EXPECT().GetOrderAccrual(mock.Anything, orderNumber).Return(accrualResp, nil).Once()
-	mockOrderRepo.EXPECT().UpdateOrderStatus(mock.Anything, orderNumber, domain.OrderStatusInvalid, (*float64)(nil)).Return(nil).Once()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool, orderRepo, txRepo, accrualClient := newTestPool(t)
+			tt.setupMocks(orderRepo, txRepo, accrualClient)
+
+			ctx := context.Background()
+			pool.processOrder(ctx, tt.orderNumber)
+		})
+	}
+}
+
+func TestPool_ProcessOrder_RateLimit(t *testing.T) {
+	pool, _, _, accrualClient := newTestPool(t)
+	ctx := context.Background()
+	orderNumber := "12345678903"
+
+	// Симулируем rate limit
+	accrualClient.EXPECT().GetOrderAccrual(mock.Anything, orderNumber).
+		Return(nil, domain.NewRateLimitError(100*time.Millisecond)).Once()
 
 	pool.processOrder(ctx, orderNumber)
 
-	time.Sleep(100 * time.Millisecond)
+	// Проверяем, что заказ добавлен в retry очередь
+	select {
+	case item := <-pool.retryQueue:
+		assert.Equal(t, orderNumber, item.orderNumber)
+		assert.True(t, item.retryAfter.After(time.Now()))
+	case <-time.After(100 * time.Millisecond):
+		t.Error("expected order in retry queue, got timeout")
+	}
 }
 
 func TestPool_ScanPendingOrders(t *testing.T) {
-	mockOrderRepo := domainmocks.NewOrderRepositoryMock(t)
-	mockTxRepo := domainmocks.NewTransactionRepositoryMock(t)
-	mockAccrualClient := domainmocks.NewAccrualClientMock(t)
-	logger, _ := zap.NewDevelopment()
-
-	pool := NewPool(1, 10, mockOrderRepo, mockTxRepo, mockAccrualClient, logger)
-
+	pool, orderRepo, _, _ := newTestPool(t)
 	ctx := context.Background()
 
 	pendingOrders := []*domain.Order{
@@ -102,17 +133,21 @@ func TestPool_ScanPendingOrders(t *testing.T) {
 		{ID: 2, Number: "222", Status: domain.OrderStatusProcessing},
 	}
 
-	mockOrderRepo.EXPECT().GetPendingOrders(mock.Anything).Return(pendingOrders, nil).Once()
+	orderRepo.EXPECT().GetPendingOrders(mock.Anything).Return(pendingOrders, nil).Once()
 
 	pool.scanPendingOrders(ctx)
 
 	// Проверяем, что заказы добавлены в очередь
-	select {
-	case num := <-pool.queue:
-		if num != "111" && num != "222" {
-			t.Errorf("unexpected order number in queue: %s", num)
+	received := make([]string, 0)
+	for i := 0; i < 2; i++ {
+		select {
+		case num := <-pool.queue:
+			received = append(received, num)
+		case <-time.After(100 * time.Millisecond):
+			break
 		}
-	case <-time.After(100 * time.Millisecond):
-		t.Error("expected order in queue, got timeout")
 	}
+
+	assert.Contains(t, received, "111")
+	assert.Contains(t, received, "222")
 }

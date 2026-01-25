@@ -84,5 +84,7 @@ func (h *OrdersHandler) GetOrders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(orders)
+	if err := json.NewEncoder(w).Encode(orders); err != nil {
+		h.logger.Error("failed to encode orders response", zap.Error(err))
+	}
 }

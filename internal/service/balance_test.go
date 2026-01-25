@@ -14,134 +14,202 @@ import (
 )
 
 func TestBalanceService_GetBalance(t *testing.T) {
-	mockTxRepo := domainmocks.NewTransactionRepositoryMock(t)
-	svc := NewBalanceService(mockTxRepo)
 	ctx := context.Background()
 
-	t.Run("Success", func(t *testing.T) {
-		userID := int64(1)
-		balance := &domain.Balance{Current: 500.0, Withdrawn: 200.0}
+	tests := []struct {
+		name         string
+		userID       int64
+		setupMock    func(*domainmocks.TransactionRepositoryMock) *domain.Balance
+		wantErr      bool
+	}{
+		{
+			name:   "Success",
+			userID: 1,
+			setupMock: func(m *domainmocks.TransactionRepositoryMock) *domain.Balance {
+				balance := &domain.Balance{Current: 500.0, Withdrawn: 200.0}
+				m.EXPECT().GetBalance(mock.Anything, int64(1)).Return(balance, nil).Once()
+				return balance
+			},
+		},
+		{
+			name:   "Database error",
+			userID: 1,
+			setupMock: func(m *domainmocks.TransactionRepositoryMock) *domain.Balance {
+				m.EXPECT().GetBalance(mock.Anything, int64(1)).Return(nil, errors.New("db error")).Once()
+				return nil
+			},
+			wantErr: true,
+		},
+	}
 
-		mockTxRepo.EXPECT().GetBalance(mock.Anything, userID).Return(balance, nil).Once()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockTxRepo := domainmocks.NewTransactionRepositoryMock(t)
+			svc := NewBalanceService(mockTxRepo)
 
-		result, err := svc.GetBalance(ctx, userID)
-		require.NoError(t, err)
-		assert.Equal(t, balance, result)
-	})
+			expectedBalance := tt.setupMock(mockTxRepo)
 
-	t.Run("Database error", func(t *testing.T) {
-		userID := int64(1)
+			result, err := svc.GetBalance(ctx, tt.userID)
 
-		mockTxRepo.EXPECT().GetBalance(mock.Anything, userID).Return(nil, errors.New("db error")).Once()
-
-		result, err := svc.GetBalance(ctx, userID)
-		assert.Error(t, err)
-		assert.Nil(t, result)
-	})
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, expectedBalance, result)
+			}
+		})
+	}
 }
 
 func TestBalanceService_Withdraw(t *testing.T) {
-	mockTxRepo := domainmocks.NewTransactionRepositoryMock(t)
-	svc := NewBalanceService(mockTxRepo)
 	ctx := context.Background()
 
-	t.Run("Success", func(t *testing.T) {
-		userID := int64(1)
-		orderNumber := "79927398713" // Valid Luhn
-		amount := 100.0
+	tests := []struct {
+		name        string
+		userID      int64
+		orderNumber string
+		amount      float64
+		setupMock   func(*domainmocks.TransactionRepositoryMock)
+		wantErr     error
+	}{
+		{
+			name:        "Success",
+			userID:      1,
+			orderNumber: "79927398713", // Valid Luhn
+			amount:      100.0,
+			setupMock: func(m *domainmocks.TransactionRepositoryMock) {
+				m.EXPECT().WithdrawWithLock(mock.Anything, int64(1), "79927398713", 100.0).Return(nil).Once()
+			},
+		},
+		{
+			name:        "Invalid order number - fails Luhn",
+			userID:      1,
+			orderNumber: "12345", // Invalid Luhn
+			amount:      100.0,
+			setupMock:   func(m *domainmocks.TransactionRepositoryMock) {},
+			wantErr:     domain.ErrInvalidOrderNumber,
+		},
+		{
+			name:        "Invalid amount - zero",
+			userID:      1,
+			orderNumber: "79927398713",
+			amount:      0.0,
+			setupMock:   func(m *domainmocks.TransactionRepositoryMock) {},
+			wantErr:     nil, // Generic error
+		},
+		{
+			name:        "Invalid amount - negative",
+			userID:      1,
+			orderNumber: "79927398713",
+			amount:      -100.0,
+			setupMock:   func(m *domainmocks.TransactionRepositoryMock) {},
+			wantErr:     nil, // Generic error
+		},
+		{
+			name:        "Insufficient funds",
+			userID:      1,
+			orderNumber: "79927398713",
+			amount:      1000.0,
+			setupMock: func(m *domainmocks.TransactionRepositoryMock) {
+				m.EXPECT().WithdrawWithLock(mock.Anything, int64(1), "79927398713", 1000.0).Return(domain.ErrInsufficientFunds).Once()
+			},
+			wantErr: domain.ErrInsufficientFunds,
+		},
+		{
+			name:        "Database error",
+			userID:      1,
+			orderNumber: "79927398713",
+			amount:      100.0,
+			setupMock: func(m *domainmocks.TransactionRepositoryMock) {
+				m.EXPECT().WithdrawWithLock(mock.Anything, int64(1), "79927398713", 100.0).Return(errors.New("db error")).Once()
+			},
+			wantErr: nil, // Generic error
+		},
+	}
 
-		mockTxRepo.EXPECT().WithdrawWithLock(mock.Anything, userID, orderNumber, amount).Return(nil).Once()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockTxRepo := domainmocks.NewTransactionRepositoryMock(t)
+			svc := NewBalanceService(mockTxRepo)
 
-		err := svc.Withdraw(ctx, userID, orderNumber, amount)
-		require.NoError(t, err)
-	})
+			tt.setupMock(mockTxRepo)
 
-	t.Run("Invalid order number", func(t *testing.T) {
-		userID := int64(1)
-		orderNumber := "12345" // Invalid Luhn
-		amount := 100.0
+			err := svc.Withdraw(ctx, tt.userID, tt.orderNumber, tt.amount)
 
-		err := svc.Withdraw(ctx, userID, orderNumber, amount)
-		assert.ErrorIs(t, err, domain.ErrInvalidOrderNumber)
-	})
-
-	t.Run("Invalid amount - zero", func(t *testing.T) {
-		userID := int64(1)
-		orderNumber := "79927398713"
-		amount := 0.0
-
-		err := svc.Withdraw(ctx, userID, orderNumber, amount)
-		assert.Error(t, err)
-	})
-
-	t.Run("Invalid amount - negative", func(t *testing.T) {
-		userID := int64(1)
-		orderNumber := "79927398713"
-		amount := -100.0
-
-		err := svc.Withdraw(ctx, userID, orderNumber, amount)
-		assert.Error(t, err)
-	})
-
-	t.Run("Insufficient funds", func(t *testing.T) {
-		userID := int64(1)
-		orderNumber := "79927398713"
-		amount := 1000.0
-
-		mockTxRepo.EXPECT().WithdrawWithLock(mock.Anything, userID, orderNumber, amount).Return(domain.ErrInsufficientFunds).Once()
-
-		err := svc.Withdraw(ctx, userID, orderNumber, amount)
-		assert.ErrorIs(t, err, domain.ErrInsufficientFunds)
-	})
-
-	t.Run("Database error", func(t *testing.T) {
-		userID := int64(1)
-		orderNumber := "79927398713"
-		amount := 100.0
-
-		mockTxRepo.EXPECT().WithdrawWithLock(mock.Anything, userID, orderNumber, amount).Return(errors.New("db error")).Once()
-
-		err := svc.Withdraw(ctx, userID, orderNumber, amount)
-		assert.Error(t, err)
-	})
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else if tt.name == "Invalid amount - zero" || tt.name == "Invalid amount - negative" || tt.name == "Database error" {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestBalanceService_GetWithdrawals(t *testing.T) {
-	mockTxRepo := domainmocks.NewTransactionRepositoryMock(t)
-	svc := NewBalanceService(mockTxRepo)
 	ctx := context.Background()
 
-	t.Run("Success", func(t *testing.T) {
-		userID := int64(1)
-		withdrawals := []*domain.Transaction{
-			{ID: 1, UserID: userID, OrderNumber: "111", Amount: 100.0, Type: domain.TransactionTypeWithdrawal, ProcessedAt: time.Now()},
-			{ID: 2, UserID: userID, OrderNumber: "222", Amount: 50.0, Type: domain.TransactionTypeWithdrawal, ProcessedAt: time.Now()},
-		}
+	tests := []struct {
+		name            string
+		userID          int64
+		setupMock       func(*domainmocks.TransactionRepositoryMock) []*domain.Transaction
+		wantWithdrawals int
+		wantErr         bool
+	}{
+		{
+			name:   "Success with withdrawals",
+			userID: 1,
+			setupMock: func(m *domainmocks.TransactionRepositoryMock) []*domain.Transaction {
+				withdrawals := []*domain.Transaction{
+					{ID: 1, UserID: 1, OrderNumber: "111", Amount: 100.0, Type: domain.TransactionTypeWithdrawal, ProcessedAt: time.Now()},
+					{ID: 2, UserID: 1, OrderNumber: "222", Amount: 50.0, Type: domain.TransactionTypeWithdrawal, ProcessedAt: time.Now()},
+				}
+				m.EXPECT().GetWithdrawals(mock.Anything, int64(1)).Return(withdrawals, nil).Once()
+				return withdrawals
+			},
+			wantWithdrawals: 2,
+		},
+		{
+			name:   "No withdrawals",
+			userID: 999,
+			setupMock: func(m *domainmocks.TransactionRepositoryMock) []*domain.Transaction {
+				m.EXPECT().GetWithdrawals(mock.Anything, int64(999)).Return([]*domain.Transaction{}, nil).Once()
+				return nil
+			},
+			wantWithdrawals: 0,
+		},
+		{
+			name:   "Database error",
+			userID: 1,
+			setupMock: func(m *domainmocks.TransactionRepositoryMock) []*domain.Transaction {
+				m.EXPECT().GetWithdrawals(mock.Anything, int64(1)).Return(nil, errors.New("db error")).Once()
+				return nil
+			},
+			wantErr: true,
+		},
+	}
 
-		mockTxRepo.EXPECT().GetWithdrawals(mock.Anything, userID).Return(withdrawals, nil).Once()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockTxRepo := domainmocks.NewTransactionRepositoryMock(t)
+			svc := NewBalanceService(mockTxRepo)
 
-		result, err := svc.GetWithdrawals(ctx, userID)
-		require.NoError(t, err)
-		assert.Equal(t, withdrawals, result)
-	})
+			expectedWithdrawals := tt.setupMock(mockTxRepo)
 
-	t.Run("No withdrawals", func(t *testing.T) {
-		userID := int64(999)
+			result, err := svc.GetWithdrawals(ctx, tt.userID)
 
-		mockTxRepo.EXPECT().GetWithdrawals(mock.Anything, userID).Return([]*domain.Transaction{}, nil).Once()
-
-		result, err := svc.GetWithdrawals(ctx, userID)
-		require.NoError(t, err)
-		assert.Empty(t, result)
-	})
-
-	t.Run("Database error", func(t *testing.T) {
-		userID := int64(1)
-
-		mockTxRepo.EXPECT().GetWithdrawals(mock.Anything, userID).Return(nil, errors.New("db error")).Once()
-
-		result, err := svc.GetWithdrawals(ctx, userID)
-		assert.Error(t, err)
-		assert.Nil(t, result)
-	})
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				assert.Len(t, result, tt.wantWithdrawals)
+				if expectedWithdrawals != nil {
+					assert.Equal(t, expectedWithdrawals, result)
+				}
+			}
+		})
+	}
 }

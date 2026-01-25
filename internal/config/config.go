@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -15,14 +16,26 @@ type Config struct {
 	JWTSecret            string        // Секретный ключ для JWT
 	JWTTokenTTL          time.Duration // Время жизни JWT токена
 	LogLevel             string        // Уровень логирования
+
+	// Worker Pool конфигурация
+	WorkerPoolSize     int           // Количество воркеров
+	WorkerQueueSize    int           // Размер очереди заказов
+	WorkerScanInterval time.Duration // Интервал сканирования pending заказов
+
+	// Валидация
+	MinPasswordLength int // Минимальная длина пароля
 }
 
 // Load загружает конфигурацию из переменных окружения и флагов
 // Приоритет: env переменные > флаги > дефолтные значения
 func Load() (*Config, error) {
 	cfg := &Config{
-		JWTTokenTTL: 24 * time.Hour,
-		LogLevel:    "info",
+		JWTTokenTTL:        24 * time.Hour,
+		LogLevel:           "info",
+		WorkerPoolSize:     3,
+		WorkerQueueSize:    100,
+		WorkerScanInterval: 10 * time.Second,
+		MinPasswordLength:  6,
 	}
 
 	// Определяем флаги
@@ -53,6 +66,25 @@ func Load() (*Config, error) {
 	// Уровень логирования
 	if envLogLevel := os.Getenv("LOG_LEVEL"); envLogLevel != "" {
 		cfg.LogLevel = envLogLevel
+	}
+
+	// Worker Pool конфигурация из env
+	if envWorkerPoolSize := os.Getenv("WORKER_POOL_SIZE"); envWorkerPoolSize != "" {
+		if size, err := strconv.Atoi(envWorkerPoolSize); err == nil && size > 0 {
+			cfg.WorkerPoolSize = size
+		}
+	}
+
+	if envWorkerQueueSize := os.Getenv("WORKER_QUEUE_SIZE"); envWorkerQueueSize != "" {
+		if size, err := strconv.Atoi(envWorkerQueueSize); err == nil && size > 0 {
+			cfg.WorkerQueueSize = size
+		}
+	}
+
+	if envScanInterval := os.Getenv("WORKER_SCAN_INTERVAL"); envScanInterval != "" {
+		if interval, err := time.ParseDuration(envScanInterval); err == nil && interval > 0 {
+			cfg.WorkerScanInterval = interval
+		}
 	}
 
 	// Валидация обязательных параметров

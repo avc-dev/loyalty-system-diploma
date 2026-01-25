@@ -15,143 +15,196 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAuthService_Register(t *testing.T) {
+func newTestAuthService(t *testing.T) (*AuthService, *domainmocks.UserRepositoryMock, *passwordmocks.HasherMock) {
 	mockUserRepo := domainmocks.NewUserRepositoryMock(t)
 	mockHasher := passwordmocks.NewHasherMock(t)
 	jwtManager := jwt.NewManager("test-secret", time.Hour)
-	svc := NewAuthService(mockUserRepo, mockHasher, jwtManager)
+	config := AuthServiceConfig{MinPasswordLength: 6}
+	svc := NewAuthService(mockUserRepo, mockHasher, jwtManager, config)
+	return svc, mockUserRepo, mockHasher
+}
+
+func TestAuthService_Register(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("Success", func(t *testing.T) {
-		login := "testuser"
-		pwd := "password123"
-		passwordHash := "hashed_password"
-		user := &domain.User{ID: 1, Login: login, PasswordHash: passwordHash}
+	tests := []struct {
+		name       string
+		login      string
+		password   string
+		setupMocks func(*domainmocks.UserRepositoryMock, *passwordmocks.HasherMock)
+		wantToken  bool
+		wantErr    error
+	}{
+		{
+			name:     "Success",
+			login:    "testuser",
+			password: "password123",
+			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {
+				hasher.EXPECT().Hash("password123").Return("hashed_password", nil).Once()
+				userRepo.EXPECT().CreateUser(mock.Anything, "testuser", "hashed_password").
+					Return(&domain.User{ID: 1, Login: "testuser", PasswordHash: "hashed_password"}, nil).Once()
+			},
+			wantToken: true,
+		},
+		{
+			name:       "Empty login",
+			login:      "",
+			password:   "password",
+			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {},
+			wantErr:    domain.ErrInvalidInput,
+		},
+		{
+			name:       "Empty password",
+			login:      "testuser",
+			password:   "",
+			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {},
+			wantErr:    domain.ErrInvalidInput,
+		},
+		{
+			name:       "Password too short",
+			login:      "testuser",
+			password:   "12345", // < 6 characters
+			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {},
+			wantErr:    domain.ErrInvalidInput,
+		},
+		{
+			name:     "Hash password error",
+			login:    "testuser",
+			password: "password123",
+			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {
+				hasher.EXPECT().Hash("password123").Return("", errors.New("hash error")).Once()
+			},
+			wantErr: nil, // generic error, not sentinel
+		},
+		{
+			name:     "User already exists",
+			login:    "existinguser",
+			password: "password123",
+			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {
+				hasher.EXPECT().Hash("password123").Return("hashed_password", nil).Once()
+				userRepo.EXPECT().CreateUser(mock.Anything, "existinguser", "hashed_password").
+					Return(nil, domain.ErrUserExists).Once()
+			},
+			wantErr: domain.ErrUserExists,
+		},
+		{
+			name:     "Database error",
+			login:    "testuser",
+			password: "password123",
+			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {
+				hasher.EXPECT().Hash("password123").Return("hashed_password", nil).Once()
+				userRepo.EXPECT().CreateUser(mock.Anything, "testuser", "hashed_password").
+					Return(nil, errors.New("db error")).Once()
+			},
+			wantErr: nil, // generic error
+		},
+	}
 
-		mockHasher.EXPECT().Hash(pwd).Return(passwordHash, nil).Once()
-		mockUserRepo.EXPECT().CreateUser(mock.Anything, login, passwordHash).Return(user, nil).Once()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, userRepo, hasher := newTestAuthService(t)
+			tt.setupMocks(userRepo, hasher)
 
-		token, err := svc.Register(ctx, login, pwd)
-		require.NoError(t, err)
-		assert.NotEmpty(t, token)
-	})
+			token, err := svc.Register(ctx, tt.login, tt.password)
 
-	t.Run("Empty login", func(t *testing.T) {
-		token, err := svc.Register(ctx, "", "password")
-		assert.Error(t, err)
-		assert.Empty(t, token)
-	})
-
-	t.Run("Empty password", func(t *testing.T) {
-		token, err := svc.Register(ctx, "testuser", "")
-		assert.Error(t, err)
-		assert.Empty(t, token)
-	})
-
-	t.Run("Hash password error", func(t *testing.T) {
-		login := "testuser"
-		pwd := "password123"
-
-		mockHasher.EXPECT().Hash(pwd).Return("", errors.New("hash error")).Once()
-
-		token, err := svc.Register(ctx, login, pwd)
-		assert.Error(t, err)
-		assert.Empty(t, token)
-	})
-
-	t.Run("User already exists", func(t *testing.T) {
-		login := "existinguser"
-		pwd := "password123"
-		passwordHash := "hashed_password"
-
-		mockHasher.EXPECT().Hash(pwd).Return(passwordHash, nil).Once()
-		mockUserRepo.EXPECT().CreateUser(mock.Anything, login, passwordHash).Return(nil, domain.ErrUserExists).Once()
-
-		token, err := svc.Register(ctx, login, pwd)
-		assert.ErrorIs(t, err, domain.ErrUserExists)
-		assert.Empty(t, token)
-	})
-
-	t.Run("Database error", func(t *testing.T) {
-		login := "testuser"
-		pwd := "password123"
-		passwordHash := "hashed_password"
-
-		mockHasher.EXPECT().Hash(pwd).Return(passwordHash, nil).Once()
-		mockUserRepo.EXPECT().CreateUser(mock.Anything, login, passwordHash).Return(nil, errors.New("db error")).Once()
-
-		token, err := svc.Register(ctx, login, pwd)
-		assert.Error(t, err)
-		assert.Empty(t, token)
-	})
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+				assert.Empty(t, token)
+			} else if tt.wantToken {
+				require.NoError(t, err)
+				assert.NotEmpty(t, token)
+			} else {
+				assert.Error(t, err)
+				assert.Empty(t, token)
+			}
+		})
+	}
 }
 
 func TestAuthService_Login(t *testing.T) {
-	mockUserRepo := domainmocks.NewUserRepositoryMock(t)
-	mockHasher := passwordmocks.NewHasherMock(t)
-	jwtManager := jwt.NewManager("test-secret", time.Hour)
-	svc := NewAuthService(mockUserRepo, mockHasher, jwtManager)
 	ctx := context.Background()
 
-	t.Run("Success", func(t *testing.T) {
-		login := "testuser"
-		pwd := "password123"
-		passwordHash := "hashed_password"
-		user := &domain.User{ID: 1, Login: login, PasswordHash: passwordHash}
+	tests := []struct {
+		name       string
+		login      string
+		password   string
+		setupMocks func(*domainmocks.UserRepositoryMock, *passwordmocks.HasherMock)
+		wantToken  bool
+		wantErr    error
+	}{
+		{
+			name:     "Success",
+			login:    "testuser",
+			password: "password123",
+			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {
+				user := &domain.User{ID: 1, Login: "testuser", PasswordHash: "hashed_password"}
+				userRepo.EXPECT().GetUserByLogin(mock.Anything, "testuser").Return(user, nil).Once()
+				hasher.EXPECT().Check("hashed_password", "password123").Return(nil).Once()
+			},
+			wantToken: true,
+		},
+		{
+			name:       "Empty login",
+			login:      "",
+			password:   "password",
+			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {},
+			wantErr:    domain.ErrInvalidInput,
+		},
+		{
+			name:       "Empty password",
+			login:      "testuser",
+			password:   "",
+			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {},
+			wantErr:    domain.ErrInvalidInput,
+		},
+		{
+			name:     "User not found",
+			login:    "nonexistent",
+			password: "password123",
+			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {
+				userRepo.EXPECT().GetUserByLogin(mock.Anything, "nonexistent").Return(nil, domain.ErrUserNotFound).Once()
+			},
+			wantErr: domain.ErrInvalidCredentials,
+		},
+		{
+			name:     "Wrong password",
+			login:    "testuser",
+			password: "wrongpassword",
+			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {
+				user := &domain.User{ID: 1, Login: "testuser", PasswordHash: "hashed_password"}
+				userRepo.EXPECT().GetUserByLogin(mock.Anything, "testuser").Return(user, nil).Once()
+				hasher.EXPECT().Check("hashed_password", "wrongpassword").Return(errors.New("password mismatch")).Once()
+			},
+			wantErr: domain.ErrInvalidCredentials,
+		},
+		{
+			name:     "Database error",
+			login:    "testuser",
+			password: "password123",
+			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {
+				userRepo.EXPECT().GetUserByLogin(mock.Anything, "testuser").Return(nil, errors.New("db error")).Once()
+			},
+			wantErr: nil, // generic error
+		},
+	}
 
-		mockUserRepo.EXPECT().GetUserByLogin(mock.Anything, login).Return(user, nil).Once()
-		mockHasher.EXPECT().Check(passwordHash, pwd).Return(nil).Once()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, userRepo, hasher := newTestAuthService(t)
+			tt.setupMocks(userRepo, hasher)
 
-		token, err := svc.Login(ctx, login, pwd)
-		require.NoError(t, err)
-		assert.NotEmpty(t, token)
-	})
+			token, err := svc.Login(ctx, tt.login, tt.password)
 
-	t.Run("Empty login", func(t *testing.T) {
-		token, err := svc.Login(ctx, "", "password")
-		assert.Error(t, err)
-		assert.Empty(t, token)
-	})
-
-	t.Run("Empty password", func(t *testing.T) {
-		token, err := svc.Login(ctx, "testuser", "")
-		assert.Error(t, err)
-		assert.Empty(t, token)
-	})
-
-	t.Run("User not found", func(t *testing.T) {
-		login := "nonexistent"
-		pwd := "password123"
-
-		mockUserRepo.EXPECT().GetUserByLogin(mock.Anything, login).Return(nil, domain.ErrUserNotFound).Once()
-
-		token, err := svc.Login(ctx, login, pwd)
-		assert.ErrorIs(t, err, domain.ErrInvalidCredentials)
-		assert.Empty(t, token)
-	})
-
-	t.Run("Wrong password", func(t *testing.T) {
-		login := "testuser"
-		pwd := "wrongpassword"
-		passwordHash := "hashed_password"
-		user := &domain.User{ID: 1, Login: login, PasswordHash: passwordHash}
-
-		mockUserRepo.EXPECT().GetUserByLogin(mock.Anything, login).Return(user, nil).Once()
-		mockHasher.EXPECT().Check(passwordHash, pwd).Return(errors.New("password mismatch")).Once()
-
-		token, err := svc.Login(ctx, login, pwd)
-		assert.ErrorIs(t, err, domain.ErrInvalidCredentials)
-		assert.Empty(t, token)
-	})
-
-	t.Run("Database error", func(t *testing.T) {
-		login := "testuser"
-		pwd := "password123"
-
-		mockUserRepo.EXPECT().GetUserByLogin(mock.Anything, login).Return(nil, errors.New("db error")).Once()
-
-		token, err := svc.Login(ctx, login, pwd)
-		assert.Error(t, err)
-		assert.Empty(t, token)
-	})
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+				assert.Empty(t, token)
+			} else if tt.wantToken {
+				require.NoError(t, err)
+				assert.NotEmpty(t, token)
+			} else {
+				assert.Error(t, err)
+				assert.Empty(t, token)
+			}
+		})
+	}
 }

@@ -7,46 +7,66 @@ import (
 	"time"
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
-	"github.com/avc/loyalty-system-diploma/internal/service"
 	"go.uber.org/zap"
 )
 
+// PoolConfig содержит конфигурацию worker pool
+type PoolConfig struct {
+	Workers      int           // Количество воркеров
+	QueueSize    int           // Размер очереди заказов
+	ScanInterval time.Duration // Интервал сканирования pending заказов
+}
+
+// DefaultPoolConfig возвращает конфигурацию по умолчанию
+func DefaultPoolConfig() PoolConfig {
+	return PoolConfig{
+		Workers:      3,
+		QueueSize:    100,
+		ScanInterval: 10 * time.Second,
+	}
+}
+
 // Pool представляет пул воркеров для обработки заказов
 type Pool struct {
-	workers         int
+	config          PoolConfig
 	queue           chan string
+	retryQueue      chan retryItem
 	orderRepo       domain.OrderRepository
 	transactionRepo domain.TransactionRepository
 	accrualClient   domain.AccrualClient
 	logger          *zap.Logger
 	wg              sync.WaitGroup
-	scanInterval    time.Duration
+}
+
+// retryItem представляет заказ для повторной обработки
+type retryItem struct {
+	orderNumber string
+	retryAfter  time.Time
 }
 
 // NewPool создает новый worker pool
 func NewPool(
-	workers int,
-	queueSize int,
+	config PoolConfig,
 	orderRepo domain.OrderRepository,
 	transactionRepo domain.TransactionRepository,
 	accrualClient domain.AccrualClient,
 	logger *zap.Logger,
 ) *Pool {
 	return &Pool{
-		workers:         workers,
-		queue:           make(chan string, queueSize),
+		config:          config,
+		queue:           make(chan string, config.QueueSize),
+		retryQueue:      make(chan retryItem, config.QueueSize),
 		orderRepo:       orderRepo,
 		transactionRepo: transactionRepo,
 		accrualClient:   accrualClient,
 		logger:          logger,
-		scanInterval:    10 * time.Second,
 	}
 }
 
 // Start запускает worker pool
 func (p *Pool) Start(ctx context.Context) {
 	// Запускаем воркеры
-	for i := 0; i < p.workers; i++ {
+	for i := 0; i < p.config.Workers; i++ {
 		p.wg.Add(1)
 		go p.worker(ctx, i)
 	}
@@ -54,11 +74,16 @@ func (p *Pool) Start(ctx context.Context) {
 	// Запускаем сканер pending заказов
 	p.wg.Add(1)
 	go p.scanner(ctx)
+
+	// Запускаем обработчик retry очереди
+	p.wg.Add(1)
+	go p.retryProcessor(ctx)
 }
 
 // Stop останавливает worker pool
 func (p *Pool) Stop() {
 	close(p.queue)
+	close(p.retryQueue)
 	p.wg.Wait()
 }
 
@@ -86,8 +111,11 @@ func (p *Pool) worker(ctx context.Context, id int) {
 func (p *Pool) scanner(ctx context.Context) {
 	defer p.wg.Done()
 
-	ticker := time.NewTicker(p.scanInterval)
+	ticker := time.NewTicker(p.config.ScanInterval)
 	defer ticker.Stop()
+
+	// Сканируем сразу при старте
+	p.scanPendingOrders(ctx)
 
 	for {
 		select {
@@ -96,6 +124,46 @@ func (p *Pool) scanner(ctx context.Context) {
 			return
 		case <-ticker.C:
 			p.scanPendingOrders(ctx)
+		}
+	}
+}
+
+// retryProcessor обрабатывает заказы для повторной попытки
+func (p *Pool) retryProcessor(ctx context.Context) {
+	defer p.wg.Done()
+
+	for {
+		select {
+		case <-ctx.Done():
+			p.logger.Info("retry processor stopping")
+			return
+		case item, ok := <-p.retryQueue:
+			if !ok {
+				return
+			}
+
+			// Ждем до времени retry
+			waitDuration := time.Until(item.retryAfter)
+			if waitDuration > 0 {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(waitDuration):
+				}
+			}
+
+			// Пытаемся добавить в основную очередь
+			select {
+			case p.queue <- item.orderNumber:
+				p.logger.Debug("order re-queued after rate limit",
+					zap.String("order", item.orderNumber))
+			case <-ctx.Done():
+				return
+			default:
+				// Очередь полна, пробуем снова через некоторое время
+				p.logger.Warn("queue full during retry, will try again",
+					zap.String("order", item.orderNumber))
+			}
 		}
 	}
 }
@@ -128,14 +196,24 @@ func (p *Pool) processOrder(ctx context.Context, orderNumber string) {
 	// Получаем информацию от accrual системы
 	accrualResp, err := p.accrualClient.GetOrderAccrual(ctx, orderNumber)
 	if err != nil {
-		// Обработка rate limiting
-		var rateLimitErr *service.RateLimitError
+		// Обработка rate limiting - неблокирующий retry
+		var rateLimitErr *domain.RateLimitError
 		if errors.As(err, &rateLimitErr) {
-			p.logger.Warn("rate limit exceeded",
+			p.logger.Warn("rate limit exceeded, scheduling retry",
 				zap.String("order", orderNumber),
 				zap.Duration("retry_after", rateLimitErr.RetryAfter),
 			)
-			time.Sleep(rateLimitErr.RetryAfter)
+			// Добавляем в retry очередь без блокировки
+			select {
+			case p.retryQueue <- retryItem{
+				orderNumber: orderNumber,
+				retryAfter:  time.Now().Add(rateLimitErr.RetryAfter),
+			}:
+			case <-ctx.Done():
+			default:
+				p.logger.Warn("retry queue full, order will be picked up by scanner",
+					zap.String("order", orderNumber))
+			}
 			return
 		}
 
@@ -178,8 +256,14 @@ func (p *Pool) processOrder(ctx context.Context, orderNumber string) {
 			return
 		}
 
-		// Создаем транзакцию начисления
+		// Создаем транзакцию начисления (с защитой от дублирования через БД constraint)
 		if err := p.transactionRepo.CreateTransaction(ctx, order.UserID, orderNumber, *accrualResp.Accrual, domain.TransactionTypeAccrual); err != nil {
+			// Игнорируем ошибку дубликата - заказ уже был обработан
+			if errors.Is(err, domain.ErrDuplicateAccrual) {
+				p.logger.Debug("accrual already exists for order",
+					zap.String("order", orderNumber))
+				return
+			}
 			p.logger.Error("failed to create accrual transaction",
 				zap.String("order", orderNumber),
 				zap.Float64("accrual", *accrualResp.Accrual),

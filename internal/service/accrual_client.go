@@ -58,20 +58,9 @@ func (c *AccrualClient) GetOrderAccrual(ctx context.Context, orderNumber string)
 		// Слишком много запросов, нужно повторить позже
 		retryAfter := resp.Header.Get("Retry-After")
 		seconds, _ := strconv.Atoi(retryAfter)
-		return nil, &RateLimitError{
-			RetryAfter: time.Duration(seconds) * time.Second,
-		}
+		return nil, domain.NewRateLimitError(time.Duration(seconds) * time.Second)
 
 	default:
 		return nil, fmt.Errorf("accrual client: unexpected status code: %d", resp.StatusCode)
 	}
-}
-
-// RateLimitError представляет ошибку превышения лимита запросов
-type RateLimitError struct {
-	RetryAfter time.Duration
-}
-
-func (e *RateLimitError) Error() string {
-	return fmt.Sprintf("rate limit exceeded, retry after %s", e.RetryAfter)
 }

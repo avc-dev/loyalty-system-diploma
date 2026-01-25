@@ -39,7 +39,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Conflict", http.StatusConflict)
 			return
 		}
-		h.logger.Error("failed to register", zap.Error(err))
+		if errors.Is(err, domain.ErrInvalidInput) {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+		h.logger.Error("failed to register", zap.Error(err), zap.String("login", req.Login))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -61,7 +65,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
-		h.logger.Error("failed to login", zap.Error(err))
+		if errors.Is(err, domain.ErrInvalidInput) {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+		h.logger.Error("failed to login", zap.Error(err), zap.String("login", req.Login))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
