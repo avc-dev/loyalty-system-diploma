@@ -1,0 +1,41 @@
+-- Создание таблицы пользователей
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    login VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Создание индекса на login для быстрого поиска
+CREATE INDEX IF NOT EXISTS idx_users_login ON users(login);
+
+-- Создание таблицы заказов
+CREATE TABLE IF NOT EXISTS orders (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    number VARCHAR(255) UNIQUE NOT NULL,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('NEW', 'PROCESSING', 'INVALID', 'PROCESSED')),
+    accrual DECIMAL(10,2),
+    uploaded_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Создание индексов для быстрого поиска заказов
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_number ON orders(number);
+
+-- Создание таблицы транзакций (начисления и списания)
+CREATE TABLE IF NOT EXISTS transactions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    order_number VARCHAR(255) NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    type VARCHAR(20) NOT NULL CHECK (type IN ('accrual', 'withdrawal')),
+    processed_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Создание индексов для быстрого поиска транзакций
+CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
+CREATE INDEX IF NOT EXISTS idx_transactions_processed_at ON transactions(processed_at DESC);
+
