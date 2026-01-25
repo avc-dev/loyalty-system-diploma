@@ -138,13 +138,15 @@ func TestPool_ScanPendingOrders(t *testing.T) {
 	pool.scanPendingOrders(ctx)
 
 	// Проверяем, что заказы добавлены в очередь
-	received := make([]string, 0)
+	assert.Equal(t, 2, len(pool.queue), "expected 2 orders in queue")
+
+	received := make([]string, 0, 2)
 	for i := 0; i < 2; i++ {
 		select {
 		case num := <-pool.queue:
 			received = append(received, num)
-		case <-time.After(100 * time.Millisecond):
-			break
+		default:
+			t.Fatal("expected item in queue")
 		}
 	}
 

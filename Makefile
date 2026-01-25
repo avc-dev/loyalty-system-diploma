@@ -51,11 +51,8 @@ lint: ## Run golangci-lint (if installed)
 	golangci-lint run
 
 # Database targets
-migrate-up: ## Run database migrations up
-	migrate -path migrations -database "postgres://user:password@localhost/loyalty_system?sslmode=disable" up
-
-migrate-down: ## Run database migrations down
-	migrate -path migrations -database "postgres://user:password@localhost/loyalty_system?sslmode=disable" down
+# Migrations are now embedded in the application and run automatically on startup
+# See internal/repository/postgres/migrations.go
 
 # Docker targets
 docker-build: ## Build Docker images

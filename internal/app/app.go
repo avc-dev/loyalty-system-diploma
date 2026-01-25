@@ -64,6 +64,13 @@ func NewApp() (*App, error) {
 
 	logger.Info("connected to database")
 
+	// Выполнение миграций
+	if err := postgres.RunMigrations(context.Background(), dbPool, logger); err != nil {
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	logger.Info("migrations completed successfully")
+
 	// Создание репозиториев
 	userRepo := postgres.NewUserRepository(dbPool)
 	orderRepo := postgres.NewOrderRepository(dbPool)
