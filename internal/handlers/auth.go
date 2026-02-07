@@ -1,21 +1,27 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 
-	"github.com/avc/loyalty-system-diploma/internal/domain"
 	"github.com/avc/loyalty-system-diploma/internal/service"
 	"go.uber.org/zap"
 )
 
+// AuthService определяет методы аутентификации.
+type AuthService interface {
+	Register(ctx context.Context, login, password string) (string, error)
+	Login(ctx context.Context, login, password string) (string, error)
+}
+
 type AuthHandler struct {
-	authService domain.AuthService
+	authService AuthService
 	logger      *zap.Logger
 }
 
-func NewAuthHandler(authService domain.AuthService, logger *zap.Logger) *AuthHandler {
+func NewAuthHandler(authService AuthService, logger *zap.Logger) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
 		logger:      logger,

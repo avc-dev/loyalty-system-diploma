@@ -33,9 +33,9 @@ type Pool struct {
 	config          PoolConfig
 	queue           chan string
 	retryQueue      chan retryItem
-	orderRepo       domain.OrderRepository
-	transactionRepo domain.TransactionRepository
-	accrualClient   domain.AccrualClient
+	orderRepo       service.OrderRepository
+	transactionRepo service.TransactionRepository
+	accrualClient   service.AccrualClient
 	logger          *zap.Logger
 	wg              sync.WaitGroup
 }
@@ -49,9 +49,9 @@ type retryItem struct {
 // NewPool создает новый worker pool
 func NewPool(
 	config PoolConfig,
-	orderRepo domain.OrderRepository,
-	transactionRepo domain.TransactionRepository,
-	accrualClient domain.AccrualClient,
+	orderRepo service.OrderRepository,
+	transactionRepo service.TransactionRepository,
+	accrualClient service.AccrualClient,
 	logger *zap.Logger,
 ) *Pool {
 	return &Pool{

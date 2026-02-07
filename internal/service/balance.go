@@ -10,13 +10,21 @@ import (
 	"github.com/avc/loyalty-system-diploma/internal/utils/luhn"
 )
 
-// BalanceService реализует domain.BalanceService
+// TransactionRepository определяет методы для работы с транзакциями.
+type TransactionRepository interface {
+	CreateTransaction(ctx context.Context, userID int64, orderNumber string, amount float64, txType domain.TransactionType) error
+	GetBalance(ctx context.Context, userID int64) (*domain.Balance, error)
+	GetWithdrawals(ctx context.Context, userID int64) ([]*domain.Transaction, error)
+	WithdrawWithLock(ctx context.Context, userID int64, orderNumber string, amount float64) error
+}
+
+// BalanceService предоставляет операции с балансом.
 type BalanceService struct {
-	transactionRepo domain.TransactionRepository
+	transactionRepo TransactionRepository
 }
 
 // NewBalanceService создает новый BalanceService
-func NewBalanceService(transactionRepo domain.TransactionRepository) *BalanceService {
+func NewBalanceService(transactionRepo TransactionRepository) *BalanceService {
 	return &BalanceService{
 		transactionRepo: transactionRepo,
 	}

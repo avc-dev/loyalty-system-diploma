@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// OrderRepository реализует domain.OrderRepository
+// OrderRepository реализует репозиторий заказов.
 type OrderRepository struct {
 	db DBTX
 }

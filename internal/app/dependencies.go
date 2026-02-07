@@ -2,7 +2,6 @@ package app
 
 import (
 	"github.com/avc/loyalty-system-diploma/internal/config"
-	"github.com/avc/loyalty-system-diploma/internal/domain"
 	"github.com/avc/loyalty-system-diploma/internal/handlers"
 	"github.com/avc/loyalty-system-diploma/internal/repository/postgres"
 	"github.com/avc/loyalty-system-diploma/internal/service"
@@ -15,17 +14,17 @@ import (
 
 // repositories содержит все репозитории приложения
 type repositories struct {
-	user        domain.UserRepository
-	order       domain.OrderRepository
-	transaction domain.TransactionRepository
+	user        service.UserRepository
+	order       service.OrderRepository
+	transaction service.TransactionRepository
 }
 
 // services содержит все сервисы приложения
 type services struct {
-	auth    domain.AuthService
-	order   domain.OrderService
-	balance domain.BalanceService
-	accrual domain.AccrualClient
+	auth    *service.AuthService
+	order   *service.OrderService
+	balance *service.BalanceService
+	accrual service.AccrualClient
 }
 
 // handlerSet содержит все хендлеры приложения

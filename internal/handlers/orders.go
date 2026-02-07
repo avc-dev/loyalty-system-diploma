@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -12,12 +13,18 @@ import (
 	"go.uber.org/zap"
 )
 
+// OrderService определяет методы работы с заказами.
+type OrderService interface {
+	SubmitOrder(ctx context.Context, userID int64, orderNumber string) error
+	GetOrders(ctx context.Context, userID int64) ([]*domain.Order, error)
+}
+
 type OrdersHandler struct {
-	orderService domain.OrderService
+	orderService OrderService
 	logger       *zap.Logger
 }
 
-func NewOrdersHandler(orderService domain.OrderService, logger *zap.Logger) *OrdersHandler {
+func NewOrdersHandler(orderService OrderService, logger *zap.Logger) *OrdersHandler {
 	return &OrdersHandler{
 		orderService: orderService,
 		logger:       logger,

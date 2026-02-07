@@ -11,6 +11,13 @@ import (
 	"github.com/avc/loyalty-system-diploma/internal/utils/password"
 )
 
+// UserRepository определяет методы для работы с пользователями.
+type UserRepository interface {
+	CreateUser(ctx context.Context, login, passwordHash string) (*domain.User, error)
+	GetUserByLogin(ctx context.Context, login string) (*domain.User, error)
+	GetUserByID(ctx context.Context, id int64) (*domain.User, error)
+}
+
 // AuthServiceConfig содержит конфигурацию AuthService
 type AuthServiceConfig struct {
 	MinPasswordLength int
@@ -23,9 +30,9 @@ func DefaultAuthServiceConfig() AuthServiceConfig {
 	}
 }
 
-// AuthService реализует domain.AuthService
+// AuthService предоставляет операции аутентификации.
 type AuthService struct {
-	userRepo          domain.UserRepository
+	userRepo          UserRepository
 	passwordHasher    password.Hasher
 	jwtManager        *jwt.Manager
 	minPasswordLength int
@@ -33,7 +40,7 @@ type AuthService struct {
 
 // NewAuthService создает новый AuthService
 func NewAuthService(
-	userRepo domain.UserRepository,
+	userRepo UserRepository,
 	passwordHasher password.Hasher,
 	jwtManager *jwt.Manager,
 	config AuthServiceConfig,

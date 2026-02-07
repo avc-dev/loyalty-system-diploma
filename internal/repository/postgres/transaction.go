@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// TransactionRepository реализует domain.TransactionRepository
+// TransactionRepository реализует репозиторий транзакций.
 type TransactionRepository struct {
 	db DBTX
 }

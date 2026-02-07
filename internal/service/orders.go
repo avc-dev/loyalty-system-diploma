@@ -10,13 +10,22 @@ import (
 	"github.com/avc/loyalty-system-diploma/internal/utils/luhn"
 )
 
-// OrderService реализует domain.OrderService
+// OrderRepository определяет методы для работы с заказами.
+type OrderRepository interface {
+	CreateOrder(ctx context.Context, userID int64, number string) (*domain.Order, error)
+	GetOrderByNumber(ctx context.Context, number string) (*domain.Order, error)
+	GetOrdersByUserID(ctx context.Context, userID int64) ([]*domain.Order, error)
+	UpdateOrderStatus(ctx context.Context, number string, status domain.OrderStatus, accrual *float64) error
+	GetPendingOrders(ctx context.Context) ([]*domain.Order, error)
+}
+
+// OrderService предоставляет операции с заказами.
 type OrderService struct {
-	orderRepo domain.OrderRepository
+	orderRepo OrderRepository
 }
 
 // NewOrderService создает новый OrderService
-func NewOrderService(orderRepo domain.OrderRepository) *OrderService {
+func NewOrderService(orderRepo OrderRepository) *OrderService {
 	return &OrderService{
 		orderRepo: orderRepo,
 	}

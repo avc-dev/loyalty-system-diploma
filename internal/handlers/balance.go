@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,12 +11,19 @@ import (
 	"go.uber.org/zap"
 )
 
+// BalanceService определяет методы работы с балансом.
+type BalanceService interface {
+	GetBalance(ctx context.Context, userID int64) (*domain.Balance, error)
+	Withdraw(ctx context.Context, userID int64, orderNumber string, amount float64) error
+	GetWithdrawals(ctx context.Context, userID int64) ([]*domain.Transaction, error)
+}
+
 type BalanceHandler struct {
-	balanceService domain.BalanceService
+	balanceService BalanceService
 	logger         *zap.Logger
 }
 
-func NewBalanceHandler(balanceService domain.BalanceService, logger *zap.Logger) *BalanceHandler {
+func NewBalanceHandler(balanceService BalanceService, logger *zap.Logger) *BalanceHandler {
 	return &BalanceHandler{
 		balanceService: balanceService,
 		logger:         logger,

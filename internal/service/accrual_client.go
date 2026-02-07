@@ -11,15 +11,20 @@ import (
 	"github.com/avc/loyalty-system-diploma/internal/domain"
 )
 
-// AccrualClient реализует domain.AccrualClient
-type AccrualClient struct {
+// AccrualClient определяет методы взаимодействия с системой начислений.
+type AccrualClient interface {
+	GetOrderAccrual(ctx context.Context, orderNumber string) (*domain.AccrualResponse, error)
+}
+
+// HTTPAccrualClient реализует AccrualClient.
+type HTTPAccrualClient struct {
 	baseURL    string
 	httpClient *http.Client
 }
 
 // NewAccrualClient создает новый AccrualClient
-func NewAccrualClient(baseURL string) *AccrualClient {
-	return &AccrualClient{
+func NewAccrualClient(baseURL string) AccrualClient {
+	return &HTTPAccrualClient{
 		baseURL: baseURL,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
@@ -28,7 +33,7 @@ func NewAccrualClient(baseURL string) *AccrualClient {
 }
 
 // GetOrderAccrual получает информацию о начислении для заказа
-func (c *AccrualClient) GetOrderAccrual(ctx context.Context, orderNumber string) (*domain.AccrualResponse, error) {
+func (c *HTTPAccrualClient) GetOrderAccrual(ctx context.Context, orderNumber string) (*domain.AccrualResponse, error) {
 	url := fmt.Sprintf("%s/api/orders/%s", c.baseURL, orderNumber)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

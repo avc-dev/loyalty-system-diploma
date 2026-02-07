@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// UserRepository реализует domain.UserRepository
+// UserRepository реализует репозиторий пользователей.
 type UserRepository struct {
 	db DBTX
 }
