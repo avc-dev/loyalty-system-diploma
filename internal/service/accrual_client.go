@@ -8,6 +8,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
+	"go.uber.org/zap"
+
 	"github.com/avc/loyalty-system-diploma/internal/domain"
 )
 
@@ -22,13 +25,26 @@ type HTTPAccrualClient struct {
 	httpClient *http.Client
 }
 
+type zapRetryLogger struct {
+	logger *zap.SugaredLogger
+}
+
+func (l *zapRetryLogger) Printf(format string, args ...any) {
+	if l == nil || l.logger == nil {
+		return
+	}
+	l.logger.Infof(format, args...)
+}
+
 // NewAccrualClient создает новый AccrualClient
-func NewAccrualClient(baseURL string) AccrualClient {
+func NewAccrualClient(baseURL string, logger *zap.Logger) AccrualClient {
+	retryClient := retryablehttp.NewClient()
+	retryClient.HTTPClient.Timeout = 10 * time.Second
+	retryClient.Logger = &zapRetryLogger{logger: logger.Sugar()}
+
 	return &HTTPAccrualClient{
 		baseURL: baseURL,
-		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		httpClient: retryClient.StandardClient(),
 	}
 }
 

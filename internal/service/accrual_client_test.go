@@ -10,6 +10,7 @@ import (
 	"github.com/avc/loyalty-system-diploma/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestAccrualClient_GetOrderAccrual(t *testing.T) {
@@ -30,7 +31,7 @@ func TestAccrualClient_GetOrderAccrual(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewAccrualClient(server.URL)
+		client := NewAccrualClient(server.URL, zap.NewNop())
 		result, err := client.GetOrderAccrual(ctx, "12345678903")
 		require.NoError(t, err)
 		assert.Equal(t, response.Order, result.Order)
@@ -50,7 +51,7 @@ func TestAccrualClient_GetOrderAccrual(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewAccrualClient(server.URL)
+		client := NewAccrualClient(server.URL, zap.NewNop())
 		result, err := client.GetOrderAccrual(ctx, "12345678903")
 		require.NoError(t, err)
 		assert.Equal(t, response.Status, result.Status)
@@ -63,7 +64,7 @@ func TestAccrualClient_GetOrderAccrual(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewAccrualClient(server.URL)
+		client := NewAccrualClient(server.URL, zap.NewNop())
 		result, err := client.GetOrderAccrual(ctx, "99999999999")
 		require.NoError(t, err)
 		assert.Nil(t, result)
@@ -76,7 +77,7 @@ func TestAccrualClient_GetOrderAccrual(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewAccrualClient(server.URL)
+		client := NewAccrualClient(server.URL, zap.NewNop())
 		result, err := client.GetOrderAccrual(ctx, "12345678903")
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -91,7 +92,7 @@ func TestAccrualClient_GetOrderAccrual(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewAccrualClient(server.URL)
+		client := NewAccrualClient(server.URL, zap.NewNop())
 		result, err := client.GetOrderAccrual(ctx, "12345678903")
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -104,7 +105,7 @@ func TestAccrualClient_GetOrderAccrual(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewAccrualClient(server.URL)
+		client := NewAccrualClient(server.URL, zap.NewNop())
 		result, err := client.GetOrderAccrual(ctx, "12345678903")
 		assert.Error(t, err)
 		assert.Nil(t, result)

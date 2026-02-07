@@ -65,7 +65,7 @@ func initDependencies(cfg *config.Config, dbPool *pgxpool.Pool, logger *zap.Logg
 		auth:    service.NewAuthService(repos.user, passwordHasher, jwtManager, authServiceConfig),
 		order:   service.NewOrderService(repos.order),
 		balance: service.NewBalanceService(repos.transaction),
-		accrual: service.NewAccrualClient(cfg.AccrualSystemAddress),
+		accrual: service.NewAccrualClient(cfg.AccrualSystemAddress, logger),
 	}
 
 	// Создание handlers
