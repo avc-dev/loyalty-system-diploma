@@ -3,7 +3,7 @@ disable-version-string: true
 mockname: "{{.InterfaceName}}Mock"
 outpkg: mocks
 dir: "{{.InterfaceDir}}/mocks"
-filename: "{{.InterfaceName}}_mock.go"
+filename: "{{.InterfaceName | snakecase}}_mock.go"
 structname: "{{.InterfaceName}}Mock"
 packages:
   github.com/avc/loyalty-system-diploma/internal/domain:
