@@ -64,7 +64,7 @@ func (h *HealthHandler) Ready(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.db.Ping(ctx); err != nil {
 		h.logger.Warn("readiness check failed: database unavailable", zap.Error(err))
-		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 		return
 	}
 

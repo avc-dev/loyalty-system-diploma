@@ -33,14 +33,14 @@ func NewBalanceHandler(balanceService BalanceService, logger *zap.Logger) *Balan
 func (h *BalanceHandler) GetBalance(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserID(r.Context())
 	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
 
 	balance, err := h.balanceService.GetBalance(r.Context(), userID)
 	if err != nil {
 		h.logger.Error("failed to get balance", zap.Error(err))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
@@ -58,28 +58,28 @@ type withdrawRequest struct {
 func (h *BalanceHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserID(r.Context())
 	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
 
 	var req withdrawRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Bad Request", http.StatusBadRequest)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	err := h.balanceService.Withdraw(r.Context(), userID, req.Order, req.Sum)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidOrderNumber) {
-			http.Error(w, "Unprocessable Entity", http.StatusUnprocessableEntity)
+			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
 			return
 		}
 		if errors.Is(err, service.ErrInsufficientFunds) {
-			http.Error(w, "Payment Required", http.StatusPaymentRequired)
+			http.Error(w, http.StatusText(http.StatusPaymentRequired), http.StatusPaymentRequired)
 			return
 		}
 		h.logger.Error("failed to withdraw", zap.Error(err))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
@@ -89,14 +89,14 @@ func (h *BalanceHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 func (h *BalanceHandler) GetWithdrawals(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserID(r.Context())
 	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
 
 	withdrawals, err := h.balanceService.GetWithdrawals(r.Context(), userID)
 	if err != nil {
 		h.logger.Error("failed to get withdrawals", zap.Error(err))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 

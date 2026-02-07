@@ -34,26 +34,26 @@ func NewOrdersHandler(orderService OrderService, logger *zap.Logger) *OrdersHand
 func (h *OrdersHandler) SubmitOrder(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserID(r.Context())
 	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "Bad Request", http.StatusBadRequest)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	orderNumber := strings.TrimSpace(string(body))
 	if orderNumber == "" {
-		http.Error(w, "Bad Request", http.StatusBadRequest)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	err = h.orderService.SubmitOrder(r.Context(), userID, orderNumber)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidOrderNumber) {
-			http.Error(w, "Unprocessable Entity", http.StatusUnprocessableEntity)
+			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
 			return
 		}
 		if errors.Is(err, service.ErrOrderExists) {
@@ -61,11 +61,11 @@ func (h *OrdersHandler) SubmitOrder(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, service.ErrOrderOwnedByAnother) {
-			http.Error(w, "Conflict", http.StatusConflict)
+			http.Error(w, http.StatusText(http.StatusConflict), http.StatusConflict)
 			return
 		}
 		h.logger.Error("failed to submit order", zap.Error(err))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
@@ -75,14 +75,14 @@ func (h *OrdersHandler) SubmitOrder(w http.ResponseWriter, r *http.Request) {
 func (h *OrdersHandler) GetOrders(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserID(r.Context())
 	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
 
 	orders, err := h.orderService.GetOrders(r.Context(), userID)
 	if err != nil {
 		h.logger.Error("failed to get orders", zap.Error(err))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
