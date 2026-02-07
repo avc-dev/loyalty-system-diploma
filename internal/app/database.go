@@ -9,8 +9,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// initDatabase создает пул соединений с базой данных
-func initDatabase(ctx context.Context, databaseURI string) (*pgxpool.Pool, error) {
+// initDatabase создает пул соединений с базой данных и выполняет миграции
+func initDatabase(ctx context.Context, databaseURI string, logger *zap.Logger) (*pgxpool.Pool, error) {
 	dbPool, err := pgxpool.New(ctx, databaseURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
@@ -20,13 +20,11 @@ func initDatabase(ctx context.Context, databaseURI string) (*pgxpool.Pool, error
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return dbPool, nil
-}
-
-// runMigrations выполняет миграции базы данных
-func runMigrations(ctx context.Context, dbPool *pgxpool.Pool, logger *zap.Logger) error {
 	if err := postgres.RunMigrations(ctx, dbPool, logger); err != nil {
-		return fmt.Errorf("failed to run migrations: %w", err)
+		dbPool.Close()
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
-	return nil
+	logger.Info("migrations completed successfully")
+
+	return dbPool, nil
 }

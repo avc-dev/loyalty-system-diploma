@@ -39,17 +39,11 @@ func NewApp() (*App, error) {
 	}
 
 	// Инициализация базы данных
-	dbPool, err := initDatabase(ctx, cfg.DatabaseURI)
+	dbPool, err := initDatabase(ctx, cfg.DatabaseURI, logger)
 	if err != nil {
 		return nil, err
 	}
 	logger.Info("connected to database")
-
-	// Выполнение миграций
-	if err := runMigrations(ctx, dbPool, logger); err != nil {
-		return nil, err
-	}
-	logger.Info("migrations completed successfully")
 
 	// Инициализация зависимостей
 	deps := initDependencies(cfg, dbPool, logger)
