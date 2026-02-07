@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
+	"github.com/avc/loyalty-system-diploma/internal/service"
 	"go.uber.org/zap"
 )
 
@@ -61,11 +62,11 @@ func (h *BalanceHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 
 	err := h.balanceService.Withdraw(r.Context(), userID, req.Order, req.Sum)
 	if err != nil {
-		if errors.Is(err, domain.ErrInvalidOrderNumber) {
+		if errors.Is(err, service.ErrInvalidOrderNumber) {
 			http.Error(w, "Unprocessable Entity", http.StatusUnprocessableEntity)
 			return
 		}
-		if errors.Is(err, domain.ErrInsufficientFunds) {
+		if errors.Is(err, service.ErrInsufficientFunds) {
 			http.Error(w, "Payment Required", http.StatusPaymentRequired)
 			return
 		}

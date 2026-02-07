@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
+	"github.com/avc/loyalty-system-diploma/internal/service"
 	"go.uber.org/zap"
 )
 
@@ -35,11 +36,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	token, err := h.authService.Register(r.Context(), req.Login, req.Password)
 	if err != nil {
-		if errors.Is(err, domain.ErrUserExists) {
+		if errors.Is(err, service.ErrUserExists) {
 			http.Error(w, "Conflict", http.StatusConflict)
 			return
 		}
-		if errors.Is(err, domain.ErrInvalidInput) {
+		if errors.Is(err, service.ErrInvalidInput) {
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
@@ -61,11 +62,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	token, err := h.authService.Login(r.Context(), req.Login, req.Password)
 	if err != nil {
-		if errors.Is(err, domain.ErrInvalidCredentials) {
+		if errors.Is(err, service.ErrInvalidCredentials) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if errors.Is(err, domain.ErrInvalidInput) {
+		if errors.Is(err, service.ErrInvalidInput) {
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}

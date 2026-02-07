@@ -7,6 +7,8 @@ import (
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
 	domainmocks "github.com/avc/loyalty-system-diploma/internal/domain/mocks"
+	"github.com/avc/loyalty-system-diploma/internal/repository/postgres"
+	"github.com/avc/loyalty-system-diploma/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
@@ -87,7 +89,7 @@ func TestPool_ProcessOrder(t *testing.T) {
 				accrualClient.EXPECT().GetOrderAccrual(mock.Anything, "12345678903").Return(accrualResp, nil).Once()
 				orderRepo.EXPECT().UpdateOrderStatus(mock.Anything, "12345678903", domain.OrderStatusProcessed, &accrual).Return(nil).Once()
 				orderRepo.EXPECT().GetOrderByNumber(mock.Anything, "12345678903").Return(order, nil).Once()
-				txRepo.EXPECT().CreateTransaction(mock.Anything, int64(1), "12345678903", accrual, domain.TransactionTypeAccrual).Return(domain.ErrDuplicateAccrual).Once()
+				txRepo.EXPECT().CreateTransaction(mock.Anything, int64(1), "12345678903", accrual, domain.TransactionTypeAccrual).Return(postgres.ErrDuplicateAccrual).Once()
 			},
 		},
 	}
@@ -110,7 +112,7 @@ func TestPool_ProcessOrder_RateLimit(t *testing.T) {
 
 	// Симулируем rate limit
 	accrualClient.EXPECT().GetOrderAccrual(mock.Anything, orderNumber).
-		Return(nil, domain.NewRateLimitError(100*time.Millisecond)).Once()
+		Return(nil, service.NewRateLimitError(100*time.Millisecond)).Once()
 
 	pool.processOrder(ctx, orderNumber)
 

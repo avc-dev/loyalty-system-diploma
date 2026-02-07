@@ -8,6 +8,7 @@ import (
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
 	domainmocks "github.com/avc/loyalty-system-diploma/internal/domain/mocks"
+	"github.com/avc/loyalty-system-diploma/internal/repository/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -88,7 +89,7 @@ func TestBalanceService_Withdraw(t *testing.T) {
 			orderNumber: "12345", // Invalid Luhn
 			amount:      100.0,
 			setupMock:   func(m *domainmocks.TransactionRepositoryMock) {},
-			wantErr:     domain.ErrInvalidOrderNumber,
+			wantErr:     ErrInvalidOrderNumber,
 		},
 		{
 			name:        "Invalid amount - zero",
@@ -112,9 +113,9 @@ func TestBalanceService_Withdraw(t *testing.T) {
 			orderNumber: "79927398713",
 			amount:      1000.0,
 			setupMock: func(m *domainmocks.TransactionRepositoryMock) {
-				m.EXPECT().WithdrawWithLock(mock.Anything, int64(1), "79927398713", 1000.0).Return(domain.ErrInsufficientFunds).Once()
+				m.EXPECT().WithdrawWithLock(mock.Anything, int64(1), "79927398713", 1000.0).Return(postgres.ErrInsufficientFunds).Once()
 			},
-			wantErr: domain.ErrInsufficientFunds,
+			wantErr: ErrInsufficientFunds,
 		},
 		{
 			name:        "Database error",

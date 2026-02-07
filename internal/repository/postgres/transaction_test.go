@@ -227,7 +227,7 @@ func TestTransactionRepository_WithdrawWithLock(t *testing.T) {
 		mock.ExpectRollback()
 
 		err := repo.WithdrawWithLock(ctx, userID, orderNumber, amount)
-		assert.ErrorIs(t, err, domain.ErrInsufficientFunds)
+		assert.ErrorIs(t, err, ErrInsufficientFunds)
 
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})

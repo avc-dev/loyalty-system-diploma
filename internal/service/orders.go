@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
+	"github.com/avc/loyalty-system-diploma/internal/repository/postgres"
 	"github.com/avc/loyalty-system-diploma/internal/utils/luhn"
 )
 
@@ -25,15 +26,18 @@ func NewOrderService(orderRepo domain.OrderRepository) *OrderService {
 func (s *OrderService) SubmitOrder(ctx context.Context, userID int64, orderNumber string) error {
 	// Валидация номера заказа по алгоритму Луна
 	if !luhn.Validate(orderNumber) {
-		return domain.ErrInvalidOrderNumber
+		return ErrInvalidOrderNumber
 	}
 
 	// Создание заказа
 	_, err := s.orderRepo.CreateOrder(ctx, userID, orderNumber)
 	if err != nil {
 		// Не оборачиваем sentinel errors
-		if errors.Is(err, domain.ErrOrderExists) || errors.Is(err, domain.ErrOrderOwnedByAnother) {
-			return err
+		if errors.Is(err, postgres.ErrOrderExists) {
+			return ErrOrderExists
+		}
+		if errors.Is(err, postgres.ErrOrderOwnedByAnother) {
+			return ErrOrderOwnedByAnother
 		}
 		return fmt.Errorf("order service: failed to submit order %q: %w", orderNumber, err)
 	}

@@ -31,7 +31,7 @@ func (r *TransactionRepository) CreateTransaction(ctx context.Context, userID in
 		// Проверяем на дублирование начисления (unique constraint violation)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" && txType == domain.TransactionTypeAccrual {
-			return domain.ErrDuplicateAccrual
+			return ErrDuplicateAccrual
 		}
 		return fmt.Errorf("repository: failed to create transaction for user %d: %w", userID, err)
 	}
@@ -123,7 +123,7 @@ func (r *TransactionRepository) WithdrawWithLock(ctx context.Context, userID int
 
 	// Проверяем достаточность средств
 	if balance < amount {
-		return domain.ErrInsufficientFunds
+		return ErrInsufficientFunds
 	}
 
 	// Создаем транзакцию списания (отрицательная сумма)

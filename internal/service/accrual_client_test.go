@@ -81,7 +81,7 @@ func TestAccrualClient_GetOrderAccrual(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, result)
 
-		var rateLimitErr *domain.RateLimitError
+		var rateLimitErr *RateLimitError
 		assert.ErrorAs(t, err, &rateLimitErr)
 	})
 

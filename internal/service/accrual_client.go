@@ -58,7 +58,7 @@ func (c *AccrualClient) GetOrderAccrual(ctx context.Context, orderNumber string)
 		// Слишком много запросов, нужно повторить позже
 		retryAfter := resp.Header.Get("Retry-After")
 		seconds, _ := strconv.Atoi(retryAfter)
-		return nil, domain.NewRateLimitError(time.Duration(seconds) * time.Second)
+		return nil, NewRateLimitError(time.Duration(seconds) * time.Second)
 
 	default:
 		return nil, fmt.Errorf("accrual client: unexpected status code: %d", resp.StatusCode)

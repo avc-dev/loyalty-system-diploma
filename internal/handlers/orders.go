@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
+	"github.com/avc/loyalty-system-diploma/internal/service"
 	"go.uber.org/zap"
 )
 
@@ -44,15 +45,15 @@ func (h *OrdersHandler) SubmitOrder(w http.ResponseWriter, r *http.Request) {
 
 	err = h.orderService.SubmitOrder(r.Context(), userID, orderNumber)
 	if err != nil {
-		if errors.Is(err, domain.ErrInvalidOrderNumber) {
+		if errors.Is(err, service.ErrInvalidOrderNumber) {
 			http.Error(w, "Unprocessable Entity", http.StatusUnprocessableEntity)
 			return
 		}
-		if errors.Is(err, domain.ErrOrderExists) {
+		if errors.Is(err, service.ErrOrderExists) {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		if errors.Is(err, domain.ErrOrderOwnedByAnother) {
+		if errors.Is(err, service.ErrOrderOwnedByAnother) {
 			http.Error(w, "Conflict", http.StatusConflict)
 			return
 		}

@@ -1,4 +1,4 @@
-package domain
+package service
 
 import (
 	"errors"
@@ -6,31 +6,19 @@ import (
 	"time"
 )
 
-// Ошибки пользователей
+// Ошибки аутентификации и ввода
 var (
 	ErrUserExists         = errors.New("user already exists")
-	ErrUserNotFound       = errors.New("user not found")
-	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrInvalidInput       = errors.New("invalid input")
+	ErrInvalidCredentials = errors.New("invalid credentials")
 )
 
-// Ошибки заказов
+// Ошибки заказов и баланса
 var (
+	ErrInvalidOrderNumber  = errors.New("invalid order number")
 	ErrOrderExists         = errors.New("order already exists")
 	ErrOrderOwnedByAnother = errors.New("order owned by another user")
-	ErrInvalidOrderNumber  = errors.New("invalid order number")
-	ErrOrderNotFound       = errors.New("order not found")
-)
-
-// Ошибки транзакций и баланса
-var (
-	ErrInsufficientFunds = errors.New("insufficient funds")
-	ErrDuplicateAccrual  = errors.New("accrual already exists for this order")
-)
-
-// Ошибки accrual клиента
-var (
-	ErrAccrualNotRegistered = errors.New("order not registered in accrual system")
+	ErrInsufficientFunds   = errors.New("insufficient funds")
 )
 
 // RateLimitError представляет ошибку превышения лимита запросов

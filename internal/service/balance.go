@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
+	"github.com/avc/loyalty-system-diploma/internal/repository/postgres"
 	"github.com/avc/loyalty-system-diploma/internal/utils/luhn"
 )
 
@@ -35,7 +36,7 @@ func (s *BalanceService) GetBalance(ctx context.Context, userID int64) (*domain.
 func (s *BalanceService) Withdraw(ctx context.Context, userID int64, orderNumber string, amount float64) error {
 	// Валидация номера заказа по алгоритму Луна
 	if !luhn.Validate(orderNumber) {
-		return domain.ErrInvalidOrderNumber
+		return ErrInvalidOrderNumber
 	}
 
 	// Валидация суммы
@@ -47,8 +48,8 @@ func (s *BalanceService) Withdraw(ctx context.Context, userID int64, orderNumber
 	err := s.transactionRepo.WithdrawWithLock(ctx, userID, orderNumber, amount)
 	if err != nil {
 		// Не оборачиваем sentinel errors
-		if errors.Is(err, domain.ErrInsufficientFunds) {
-			return err
+		if errors.Is(err, postgres.ErrInsufficientFunds) {
+			return ErrInsufficientFunds
 		}
 		return fmt.Errorf("balance service: failed to withdraw %f for user %d: %w", amount, userID, err)
 	}

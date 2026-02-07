@@ -57,7 +57,7 @@ func TestUserRepository_CreateUser(t *testing.T) {
 			WillReturnError(&pgconn.PgError{Code: "23505"})
 
 		user, err := repo.CreateUser(ctx, login, passwordHash)
-		assert.ErrorIs(t, err, domain.ErrUserExists)
+		assert.ErrorIs(t, err, ErrUserExists)
 		assert.Nil(t, user)
 
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -119,7 +119,7 @@ func TestUserRepository_GetUserByLogin(t *testing.T) {
 			WillReturnError(pgx.ErrNoRows)
 
 		user, err := repo.GetUserByLogin(ctx, login)
-		assert.ErrorIs(t, err, domain.ErrUserNotFound)
+		assert.ErrorIs(t, err, ErrUserNotFound)
 		assert.Nil(t, user)
 
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -180,7 +180,7 @@ func TestUserRepository_GetUserByID(t *testing.T) {
 			WillReturnError(pgx.ErrNoRows)
 
 		user, err := repo.GetUserByID(ctx, userID)
-		assert.ErrorIs(t, err, domain.ErrUserNotFound)
+		assert.ErrorIs(t, err, ErrUserNotFound)
 		assert.Nil(t, user)
 
 		assert.NoError(t, mock.ExpectationsWereMet())

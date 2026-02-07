@@ -35,7 +35,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, login, passwordHash str
 		// Проверка на уникальность логина (код ошибки PostgreSQL)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return nil, domain.ErrUserExists
+			return nil, ErrUserExists
 		}
 		return nil, fmt.Errorf("repository: failed to create user %q: %w", login, err)
 	}
@@ -56,7 +56,7 @@ func (r *UserRepository) GetUserByLogin(ctx context.Context, login string) (*dom
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, domain.ErrUserNotFound
+			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("repository: failed to get user by login %q: %w", login, err)
 	}
@@ -77,7 +77,7 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id int64) (*domain.Use
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, domain.ErrUserNotFound
+			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("repository: failed to get user by id %d: %w", id, err)
 	}

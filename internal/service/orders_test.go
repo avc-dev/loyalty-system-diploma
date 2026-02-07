@@ -8,6 +8,7 @@ import (
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
 	domainmocks "github.com/avc/loyalty-system-diploma/internal/domain/mocks"
+	"github.com/avc/loyalty-system-diploma/internal/repository/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -38,25 +39,25 @@ func TestOrderService_SubmitOrder(t *testing.T) {
 			userID:      1,
 			orderNumber: "12345", // Invalid Luhn
 			setupMock:   func(m *domainmocks.OrderRepositoryMock) {},
-			wantErr:     domain.ErrInvalidOrderNumber,
+			wantErr:     ErrInvalidOrderNumber,
 		},
 		{
 			name:        "Order already exists - same user",
 			userID:      1,
 			orderNumber: "79927398713",
 			setupMock: func(m *domainmocks.OrderRepositoryMock) {
-				m.EXPECT().CreateOrder(mock.Anything, int64(1), "79927398713").Return(nil, domain.ErrOrderExists).Once()
+				m.EXPECT().CreateOrder(mock.Anything, int64(1), "79927398713").Return(nil, postgres.ErrOrderExists).Once()
 			},
-			wantErr: domain.ErrOrderExists,
+			wantErr: ErrOrderExists,
 		},
 		{
 			name:        "Order owned by another user",
 			userID:      1,
 			orderNumber: "79927398713",
 			setupMock: func(m *domainmocks.OrderRepositoryMock) {
-				m.EXPECT().CreateOrder(mock.Anything, int64(1), "79927398713").Return(nil, domain.ErrOrderOwnedByAnother).Once()
+				m.EXPECT().CreateOrder(mock.Anything, int64(1), "79927398713").Return(nil, postgres.ErrOrderOwnedByAnother).Once()
 			},
-			wantErr: domain.ErrOrderOwnedByAnother,
+			wantErr: ErrOrderOwnedByAnother,
 		},
 		{
 			name:        "Database error",

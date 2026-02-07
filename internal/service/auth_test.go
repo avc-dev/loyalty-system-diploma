@@ -8,6 +8,7 @@ import (
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
 	domainmocks "github.com/avc/loyalty-system-diploma/internal/domain/mocks"
+	"github.com/avc/loyalty-system-diploma/internal/repository/postgres"
 	"github.com/avc/loyalty-system-diploma/internal/utils/jwt"
 	passwordmocks "github.com/avc/loyalty-system-diploma/internal/utils/password/mocks"
 	"github.com/stretchr/testify/assert"
@@ -51,21 +52,21 @@ func TestAuthService_Register(t *testing.T) {
 			login:      "",
 			password:   "password",
 			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {},
-			wantErr:    domain.ErrInvalidInput,
+			wantErr:    ErrInvalidInput,
 		},
 		{
 			name:       "Empty password",
 			login:      "testuser",
 			password:   "",
 			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {},
-			wantErr:    domain.ErrInvalidInput,
+			wantErr:    ErrInvalidInput,
 		},
 		{
 			name:       "Password too short",
 			login:      "testuser",
 			password:   "12345", // < 6 characters
 			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {},
-			wantErr:    domain.ErrInvalidInput,
+			wantErr:    ErrInvalidInput,
 		},
 		{
 			name:     "Hash password error",
@@ -83,9 +84,9 @@ func TestAuthService_Register(t *testing.T) {
 			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {
 				hasher.EXPECT().Hash("password123").Return("hashed_password", nil).Once()
 				userRepo.EXPECT().CreateUser(mock.Anything, "existinguser", "hashed_password").
-					Return(nil, domain.ErrUserExists).Once()
+					Return(nil, postgres.ErrUserExists).Once()
 			},
-			wantErr: domain.ErrUserExists,
+			wantErr: ErrUserExists,
 		},
 		{
 			name:     "Database error",
@@ -148,23 +149,23 @@ func TestAuthService_Login(t *testing.T) {
 			login:      "",
 			password:   "password",
 			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {},
-			wantErr:    domain.ErrInvalidInput,
+			wantErr:    ErrInvalidInput,
 		},
 		{
 			name:       "Empty password",
 			login:      "testuser",
 			password:   "",
 			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {},
-			wantErr:    domain.ErrInvalidInput,
+			wantErr:    ErrInvalidInput,
 		},
 		{
 			name:     "User not found",
 			login:    "nonexistent",
 			password: "password123",
 			setupMocks: func(userRepo *domainmocks.UserRepositoryMock, hasher *passwordmocks.HasherMock) {
-				userRepo.EXPECT().GetUserByLogin(mock.Anything, "nonexistent").Return(nil, domain.ErrUserNotFound).Once()
+				userRepo.EXPECT().GetUserByLogin(mock.Anything, "nonexistent").Return(nil, postgres.ErrUserNotFound).Once()
 			},
-			wantErr: domain.ErrInvalidCredentials,
+			wantErr: ErrInvalidCredentials,
 		},
 		{
 			name:     "Wrong password",
@@ -175,7 +176,7 @@ func TestAuthService_Login(t *testing.T) {
 				userRepo.EXPECT().GetUserByLogin(mock.Anything, "testuser").Return(user, nil).Once()
 				hasher.EXPECT().Check("hashed_password", "wrongpassword").Return(errors.New("password mismatch")).Once()
 			},
-			wantErr: domain.ErrInvalidCredentials,
+			wantErr: ErrInvalidCredentials,
 		},
 		{
 			name:     "Database error",

@@ -12,6 +12,7 @@ import (
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
 	domainmocks "github.com/avc/loyalty-system-diploma/internal/domain/mocks"
+	"github.com/avc/loyalty-system-diploma/internal/service"
 	"github.com/avc/loyalty-system-diploma/internal/utils/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -40,7 +41,7 @@ func TestAuthHandler_Register(t *testing.T) {
 			name: "User exists",
 			body: `{"login":"user","password":"pass"}`,
 			setupMock: func(m *domainmocks.AuthServiceMock) {
-				m.EXPECT().Register(mock.Anything, "user", "pass").Return("", domain.ErrUserExists).Once()
+				m.EXPECT().Register(mock.Anything, "user", "pass").Return("", service.ErrUserExists).Once()
 			},
 			expectedStatus: http.StatusConflict,
 		},
@@ -48,7 +49,7 @@ func TestAuthHandler_Register(t *testing.T) {
 			name: "Invalid input",
 			body: `{"login":"user","password":"pass"}`,
 			setupMock: func(m *domainmocks.AuthServiceMock) {
-				m.EXPECT().Register(mock.Anything, "user", "pass").Return("", domain.ErrInvalidInput).Once()
+				m.EXPECT().Register(mock.Anything, "user", "pass").Return("", service.ErrInvalidInput).Once()
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -110,7 +111,7 @@ func TestAuthHandler_Login(t *testing.T) {
 			name: "Invalid credentials",
 			body: `{"login":"user","password":"wrong"}`,
 			setupMock: func(m *domainmocks.AuthServiceMock) {
-				m.EXPECT().Login(mock.Anything, "user", "wrong").Return("", domain.ErrInvalidCredentials).Once()
+				m.EXPECT().Login(mock.Anything, "user", "wrong").Return("", service.ErrInvalidCredentials).Once()
 			},
 			expectedStatus: http.StatusUnauthorized,
 		},
@@ -118,7 +119,7 @@ func TestAuthHandler_Login(t *testing.T) {
 			name: "Invalid input",
 			body: `{"login":"","password":"pass"}`,
 			setupMock: func(m *domainmocks.AuthServiceMock) {
-				m.EXPECT().Login(mock.Anything, "", "pass").Return("", domain.ErrInvalidInput).Once()
+				m.EXPECT().Login(mock.Anything, "", "pass").Return("", service.ErrInvalidInput).Once()
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -173,7 +174,7 @@ func TestOrdersHandler_SubmitOrder(t *testing.T) {
 			body:   "79927398713",
 			userID: ptrInt64(1),
 			setupMock: func(m *domainmocks.OrderServiceMock) {
-				m.EXPECT().SubmitOrder(mock.Anything, int64(1), "79927398713").Return(domain.ErrOrderExists).Once()
+				m.EXPECT().SubmitOrder(mock.Anything, int64(1), "79927398713").Return(service.ErrOrderExists).Once()
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -182,7 +183,7 @@ func TestOrdersHandler_SubmitOrder(t *testing.T) {
 			body:   "79927398713",
 			userID: ptrInt64(1),
 			setupMock: func(m *domainmocks.OrderServiceMock) {
-				m.EXPECT().SubmitOrder(mock.Anything, int64(1), "79927398713").Return(domain.ErrOrderOwnedByAnother).Once()
+				m.EXPECT().SubmitOrder(mock.Anything, int64(1), "79927398713").Return(service.ErrOrderOwnedByAnother).Once()
 			},
 			expectedStatus: http.StatusConflict,
 		},
@@ -191,7 +192,7 @@ func TestOrdersHandler_SubmitOrder(t *testing.T) {
 			body:   "12345",
 			userID: ptrInt64(1),
 			setupMock: func(m *domainmocks.OrderServiceMock) {
-				m.EXPECT().SubmitOrder(mock.Anything, int64(1), "12345").Return(domain.ErrInvalidOrderNumber).Once()
+				m.EXPECT().SubmitOrder(mock.Anything, int64(1), "12345").Return(service.ErrInvalidOrderNumber).Once()
 			},
 			expectedStatus: http.StatusUnprocessableEntity,
 		},
@@ -371,7 +372,7 @@ func TestBalanceHandler_Withdraw(t *testing.T) {
 			body:   `{"order":"79927398713","sum":1000}`,
 			userID: ptrInt64(1),
 			setupMock: func(m *domainmocks.BalanceServiceMock) {
-				m.EXPECT().Withdraw(mock.Anything, int64(1), "79927398713", 1000.0).Return(domain.ErrInsufficientFunds).Once()
+				m.EXPECT().Withdraw(mock.Anything, int64(1), "79927398713", 1000.0).Return(service.ErrInsufficientFunds).Once()
 			},
 			expectedStatus: http.StatusPaymentRequired,
 		},
@@ -380,7 +381,7 @@ func TestBalanceHandler_Withdraw(t *testing.T) {
 			body:   `{"order":"12345","sum":100}`,
 			userID: ptrInt64(1),
 			setupMock: func(m *domainmocks.BalanceServiceMock) {
-				m.EXPECT().Withdraw(mock.Anything, int64(1), "12345", 100.0).Return(domain.ErrInvalidOrderNumber).Once()
+				m.EXPECT().Withdraw(mock.Anything, int64(1), "12345", 100.0).Return(service.ErrInvalidOrderNumber).Once()
 			},
 			expectedStatus: http.StatusUnprocessableEntity,
 		},

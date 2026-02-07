@@ -69,7 +69,7 @@ func TestOrderRepository_CreateOrder(t *testing.T) {
 			WillReturnRows(rows)
 
 		order, err := repo.CreateOrder(ctx, userID, number)
-		assert.ErrorIs(t, err, domain.ErrOrderExists)
+		assert.ErrorIs(t, err, ErrOrderExists)
 		assert.Equal(t, existingOrder.ID, order.ID)
 
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -101,7 +101,7 @@ func TestOrderRepository_CreateOrder(t *testing.T) {
 			WillReturnRows(rows)
 
 		order, err := repo.CreateOrder(ctx, userID, number)
-		assert.ErrorIs(t, err, domain.ErrOrderOwnedByAnother)
+		assert.ErrorIs(t, err, ErrOrderOwnedByAnother)
 		assert.Nil(t, order)
 
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -152,7 +152,7 @@ func TestOrderRepository_GetOrderByNumber(t *testing.T) {
 			WillReturnError(pgx.ErrNoRows)
 
 		order, err := repo.GetOrderByNumber(ctx, number)
-		assert.ErrorIs(t, err, domain.ErrOrderNotFound)
+		assert.ErrorIs(t, err, ErrOrderNotFound)
 		assert.Nil(t, order)
 
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -251,7 +251,7 @@ func TestOrderRepository_UpdateOrderStatus(t *testing.T) {
 			WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 
 		err := repo.UpdateOrderStatus(ctx, number, status, &accrual)
-		assert.ErrorIs(t, err, domain.ErrOrderNotFound)
+		assert.ErrorIs(t, err, ErrOrderNotFound)
 
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})

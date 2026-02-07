@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
+	"github.com/avc/loyalty-system-diploma/internal/repository/postgres"
+	"github.com/avc/loyalty-system-diploma/internal/service"
 	"go.uber.org/zap"
 )
 
@@ -197,7 +199,7 @@ func (p *Pool) processOrder(ctx context.Context, orderNumber string) {
 	accrualResp, err := p.accrualClient.GetOrderAccrual(ctx, orderNumber)
 	if err != nil {
 		// Обработка rate limiting - неблокирующий retry
-		var rateLimitErr *domain.RateLimitError
+		var rateLimitErr *service.RateLimitError
 		if errors.As(err, &rateLimitErr) {
 			p.logger.Warn("rate limit exceeded, scheduling retry",
 				zap.String("order", orderNumber),
@@ -259,7 +261,7 @@ func (p *Pool) processOrder(ctx context.Context, orderNumber string) {
 		// Создаем транзакцию начисления (с защитой от дублирования через БД constraint)
 		if err := p.transactionRepo.CreateTransaction(ctx, order.UserID, orderNumber, *accrualResp.Accrual, domain.TransactionTypeAccrual); err != nil {
 			// Игнорируем ошибку дубликата - заказ уже был обработан
-			if errors.Is(err, domain.ErrDuplicateAccrual) {
+			if errors.Is(err, postgres.ErrDuplicateAccrual) {
 				p.logger.Debug("accrual already exists for order",
 					zap.String("order", orderNumber))
 				return

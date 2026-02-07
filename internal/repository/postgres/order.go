@@ -44,9 +44,9 @@ func (r *OrderRepository) CreateOrder(ctx context.Context, userID int64, number 
 				return nil, fmt.Errorf("repository: failed to check existing order: %w", getErr)
 			}
 			if existingOrder.UserID != userID {
-				return nil, domain.ErrOrderOwnedByAnother
+				return nil, ErrOrderOwnedByAnother
 			}
-			return existingOrder, domain.ErrOrderExists
+			return existingOrder, ErrOrderExists
 		}
 		return nil, fmt.Errorf("repository: failed to create order %q: %w", number, err)
 	}
@@ -67,7 +67,7 @@ func (r *OrderRepository) GetOrderByNumber(ctx context.Context, number string) (
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, domain.ErrOrderNotFound
+			return nil, ErrOrderNotFound
 		}
 		return nil, fmt.Errorf("repository: failed to get order by number %q: %w", number, err)
 	}
@@ -121,7 +121,7 @@ func (r *OrderRepository) UpdateOrderStatus(ctx context.Context, number string, 
 	}
 
 	if result.RowsAffected() == 0 {
-		return domain.ErrOrderNotFound
+		return ErrOrderNotFound
 	}
 
 	return nil
