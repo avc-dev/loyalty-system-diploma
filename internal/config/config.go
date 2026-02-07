@@ -45,43 +45,44 @@ func Load() (*Config, error) {
 	flag.Parse()
 
 	// Переменные окружения имеют приоритет над флагами
-	if envRunAddr := os.Getenv("RUN_ADDRESS"); envRunAddr != "" {
+	if envRunAddr, ok := os.LookupEnv("RUN_ADDRESS"); ok {
 		cfg.RunAddress = envRunAddr
 	}
 
-	if envDBURI := os.Getenv("DATABASE_URI"); envDBURI != "" {
+	if envDBURI, ok := os.LookupEnv("DATABASE_URI"); ok {
 		cfg.DatabaseURI = envDBURI
 	}
 
-	if envAccrualAddr := os.Getenv("ACCRUAL_SYSTEM_ADDRESS"); envAccrualAddr != "" {
+	if envAccrualAddr, ok := os.LookupEnv("ACCRUAL_SYSTEM_ADDRESS"); ok {
 		cfg.AccrualSystemAddress = envAccrualAddr
 	}
 
 	// JWT секрет (только из env, не из флагов для безопасности)
-	cfg.JWTSecret = os.Getenv("JWT_SECRET")
-	if cfg.JWTSecret == "" {
+	if envJWTSecret, ok := os.LookupEnv("JWT_SECRET"); ok {
+		cfg.JWTSecret = envJWTSecret
+	} else {
 		cfg.JWTSecret = "default-secret-key-change-in-production"
 	}
 
 	// Уровень логирования
-	if envLogLevel := os.Getenv("LOG_LEVEL"); envLogLevel != "" {
+	if envLogLevel, ok := os.LookupEnv("LOG_LEVEL"); ok {
 		cfg.LogLevel = envLogLevel
 	}
 
 	// Worker Pool конфигурация из env
-	if envWorkerPoolSize := os.Getenv("WORKER_POOL_SIZE"); envWorkerPoolSize != "" {
+	if envWorkerPoolSize, ok := os.LookupEnv("WORKER_POOL_SIZE"); ok {
 		if size, err := strconv.Atoi(envWorkerPoolSize); err == nil && size > 0 {
 			cfg.WorkerPoolSize = size
 		}
 	}
 
-	if envWorkerQueueSize := os.Getenv("WORKER_QUEUE_SIZE"); envWorkerQueueSize != "" {
+	if envWorkerQueueSize, ok := os.LookupEnv("WORKER_QUEUE_SIZE"); ok {
 		if size, err := strconv.Atoi(envWorkerQueueSize); err == nil && size > 0 {
 			cfg.WorkerQueueSize = size
 		}
 	}
 
-	if envScanInterval := os.Getenv("WORKER_SCAN_INTERVAL"); envScanInterval != "" {
+	if envScanInterval, ok := os.LookupEnv("WORKER_SCAN_INTERVAL"); ok {
 		if interval, err := time.ParseDuration(envScanInterval); err == nil && interval > 0 {
 			cfg.WorkerScanInterval = interval
 		}
