@@ -27,7 +27,10 @@ func Validate(number string) bool {
 
 	// Проходим с конца строки
 	for i := len(number) - 1; i >= 0; i-- {
-		digit, _ := strconv.Atoi(string(number[i]))
+		digit, err := strconv.Atoi(string(number[i]))
+		if err != nil {
+			return false
+		}
 
 		if isSecond {
 			digit *= 2

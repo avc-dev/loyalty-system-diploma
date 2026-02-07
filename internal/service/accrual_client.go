@@ -78,7 +78,10 @@ func (c *HTTPAccrualClient) GetOrderAccrual(ctx context.Context, orderNumber str
 	case http.StatusTooManyRequests:
 		// Слишком много запросов, нужно повторить позже
 		retryAfter := resp.Header.Get("Retry-After")
-		seconds, _ := strconv.Atoi(retryAfter)
+		seconds, err := strconv.Atoi(retryAfter)
+		if err != nil {
+			return nil, fmt.Errorf("accrual client: invalid Retry-After header %q: %w", retryAfter, err)
+		}
 		return nil, NewRateLimitError(time.Duration(seconds) * time.Second)
 
 	default:
