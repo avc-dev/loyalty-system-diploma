@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/avc/loyalty-system-diploma/internal/domain"
@@ -38,6 +39,7 @@ type Pool struct {
 	accrualClient   service.AccrualClient
 	logger          *zap.Logger
 	wg              sync.WaitGroup
+	cooldownUntil   int64
 }
 
 // retryItem представляет заказ для повторной обработки
@@ -96,6 +98,10 @@ func (p *Pool) worker(ctx context.Context, id int) {
 	p.logger.Info("worker started", zap.Int("worker_id", id))
 
 	for {
+		if !p.waitForCooldown(ctx) {
+			p.logger.Info("worker stopping", zap.Int("worker_id", id))
+			return
+		}
 		select {
 		case <-ctx.Done():
 			p.logger.Info("worker stopping", zap.Int("worker_id", id))
@@ -191,9 +197,57 @@ func (p *Pool) scanPendingOrders(ctx context.Context) {
 	}
 }
 
+func (p *Pool) setCooldown(until time.Time) {
+	if until.IsZero() {
+		return
+	}
+
+	for {
+		currentUnix := atomic.LoadInt64(&p.cooldownUntil)
+		current := time.Unix(0, currentUnix)
+		if current.After(until) {
+			return
+		}
+		if atomic.CompareAndSwapInt64(&p.cooldownUntil, currentUnix, until.UnixNano()) {
+			p.logger.Warn("accrual cooldown set", zap.Time("until", until))
+			return
+		}
+	}
+}
+
+func (p *Pool) waitForCooldown(ctx context.Context) bool {
+	for {
+		untilUnix := atomic.LoadInt64(&p.cooldownUntil)
+		if untilUnix == 0 {
+			return true
+		}
+
+		until := time.Unix(0, untilUnix)
+		waitDuration := time.Until(until)
+		if waitDuration <= 0 {
+			atomic.CompareAndSwapInt64(&p.cooldownUntil, untilUnix, 0)
+			return true
+		}
+
+		timer := time.NewTimer(waitDuration)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return false
+		case <-timer.C:
+		}
+	}
+}
+
 // processOrder обрабатывает один заказ
 func (p *Pool) processOrder(ctx context.Context, orderNumber string) {
 	p.logger.Debug("processing order", zap.String("order", orderNumber))
+
+	if !p.waitForCooldown(ctx) {
+		return
+	}
 
 	// Получаем информацию от accrual системы
 	accrualResp, err := p.accrualClient.GetOrderAccrual(ctx, orderNumber)
@@ -201,6 +255,8 @@ func (p *Pool) processOrder(ctx context.Context, orderNumber string) {
 		// Обработка rate limiting - неблокирующий retry
 		var rateLimitErr *service.RateLimitError
 		if errors.As(err, &rateLimitErr) {
+			retryAt := time.Now().Add(rateLimitErr.RetryAfter)
+			p.setCooldown(retryAt)
 			p.logger.Warn("rate limit exceeded, scheduling retry",
 				zap.String("order", orderNumber),
 				zap.Duration("retry_after", rateLimitErr.RetryAfter),
