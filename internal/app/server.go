@@ -3,9 +3,6 @@ package app
 import (
 	"context"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -30,8 +27,8 @@ func createServer(addr string, handler *chi.Mux) *http.Server {
 	}
 }
 
-// runServer запускает HTTP сервер и ожидает сигнала завершения
-func (a *App) runServer(ctx context.Context) error {
+// runServer запускает HTTP сервер
+func (a *App) runServer() error {
 	// Запуск HTTP сервера в горутине
 	go func() {
 		a.logger.Info("starting HTTP server", zap.String("address", a.server.Addr))
@@ -39,11 +36,6 @@ func (a *App) runServer(ctx context.Context) error {
 			a.logger.Fatal("failed to start server", zap.Error(err))
 		}
 	}()
-
-	// Ожидание сигнала завершения
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
 
 	return nil
 }

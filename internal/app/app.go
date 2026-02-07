@@ -65,18 +65,21 @@ func NewApp() (*App, error) {
 }
 
 // Run запускает приложение
-func (a *App) Run() error {
-	ctx, cancel := context.WithCancel(context.Background())
+func (a *App) Run(ctx context.Context) error {
+	appCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// Запуск worker pool
-	a.workerPool.Start(ctx)
+	a.workerPool.Start(appCtx)
 	a.logger.Info("worker pool started")
 
-	// Запуск HTTP сервера и ожидание сигнала завершения
-	if err := a.runServer(ctx); err != nil {
+	// Запуск HTTP сервера
+	if err := a.runServer(); err != nil {
 		return err
 	}
+
+	// Ожидание сигнала завершения через контекст
+	<-appCtx.Done()
 
 	// Graceful shutdown
 	a.shutdown(cancel)
