@@ -76,9 +76,8 @@ func (s *AuthService) Register(ctx context.Context, login, userPassword string) 
 	// Создание пользователя
 	user, err := s.userRepo.CreateUser(ctx, login, hash)
 	if err != nil {
-		// Не оборачиваем sentinel error
 		if errors.Is(err, postgres.ErrUserExists) {
-			return "", ErrUserExists
+			return "", fmt.Errorf("auth service: user %q already exists: %w", login, ErrUserExists)
 		}
 		return "", fmt.Errorf("auth service: failed to register user %q: %w", login, err)
 	}

@@ -55,9 +55,8 @@ func (s *BalanceService) Withdraw(ctx context.Context, userID int64, orderNumber
 	// Списание средств с блокировкой
 	err := s.transactionRepo.WithdrawWithLock(ctx, userID, orderNumber, amount)
 	if err != nil {
-		// Не оборачиваем sentinel errors
 		if errors.Is(err, postgres.ErrInsufficientFunds) {
-			return ErrInsufficientFunds
+			return fmt.Errorf("balance service: insufficient funds for user %d: %w", userID, ErrInsufficientFunds)
 		}
 		return fmt.Errorf("balance service: failed to withdraw %f for user %d: %w", amount, userID, err)
 	}

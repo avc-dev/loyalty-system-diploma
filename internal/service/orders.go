@@ -41,12 +41,11 @@ func (s *OrderService) SubmitOrder(ctx context.Context, userID int64, orderNumbe
 	// Создание заказа
 	_, err := s.orderRepo.CreateOrder(ctx, userID, orderNumber)
 	if err != nil {
-		// Не оборачиваем sentinel errors
 		if errors.Is(err, postgres.ErrOrderExists) {
-			return ErrOrderExists
+			return fmt.Errorf("order service: order %q already exists: %w", orderNumber, ErrOrderExists)
 		}
 		if errors.Is(err, postgres.ErrOrderOwnedByAnother) {
-			return ErrOrderOwnedByAnother
+			return fmt.Errorf("order service: order %q belongs to another user: %w", orderNumber, ErrOrderOwnedByAnother)
 		}
 		return fmt.Errorf("order service: failed to submit order %q: %w", orderNumber, err)
 	}
