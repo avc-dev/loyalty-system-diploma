@@ -1,0 +1,88 @@
+package app
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+
+	"github.com/avc/loyalty-system-diploma/internal/config"
+	"github.com/avc/loyalty-system-diploma/internal/worker"
+	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
+)
+
+// App представляет приложение
+type App struct {
+	config     *config.Config
+	logger     *zap.Logger
+	db         *pgxpool.Pool
+	router     *chi.Mux
+	workerPool *worker.Pool
+	server     *http.Server
+}
+
+// NewApp создает новое приложение
+func NewApp() (*App, error) {
+	ctx := context.Background()
+
+	// Загрузка конфигурации
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Инициализация логгера
+	logger, err := initLogger(cfg.LogLevel)
+	if err != nil {
+		return nil, err
+	}
+
+	// Инициализация базы данных
+	dbPool, err := initDatabase(ctx, cfg.DatabaseURI, logger)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("connected to database")
+
+	// Инициализация зависимостей
+	deps := initDependencies(cfg, dbPool, logger)
+
+	// Настройка роутера
+	router := setupRouter(deps, deps.jwtManager, logger)
+
+	// Создание HTTP сервера
+	server := createServer(cfg.RunAddress, router)
+
+	return &App{
+		config:     cfg,
+		logger:     logger,
+		db:         dbPool,
+		router:     router,
+		workerPool: deps.workerPool,
+		server:     server,
+	}, nil
+}
+
+// Run запускает приложение
+func (a *App) Run(ctx context.Context) error {
+	appCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Запуск worker pool
+	a.workerPool.Start(appCtx)
+	a.logger.Info("worker pool started")
+
+	// Запуск HTTP сервера
+	if err := a.runServer(); err != nil {
+		return err
+	}
+
+	// Ожидание сигнала завершения через контекст
+	<-appCtx.Done()
+
+	// Graceful shutdown
+	a.shutdown(cancel)
+
+	return nil
+}
